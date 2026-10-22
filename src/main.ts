@@ -4,6 +4,13 @@ import { initNav } from "./nav";
 import { loadPrefs, savePrefs } from "./prefs";
 import { getSystemInfo, renderKernels, renderVisaoGeral } from "./system";
 import { Monitor } from "./monitor";
+import {
+  clearEvents,
+  getAnalysis,
+  renderHistorico,
+  renderOtimizacao,
+  recordEvent,
+} from "./historico";
 import type { SystemSnapshot } from "./system";
 import type { ThemeChoice } from "./motion";
 
@@ -25,11 +32,20 @@ window.addEventListener("DOMContentLoaded", async () => {
       renderVisaoGeral(snapshot);
       renderKernels(snapshot);
       setStatus("ok", "Sistema detectado");
+      recordEvent("deteccao", "detecção do sistema", "concluido", "Hardware e sistema identificados com as fontes nativas");
     })
     .catch((e) => {
       console.error("Falha na detecção do sistema:", e);
       setStatus("error", "Detecção indisponível");
+      recordEvent("deteccao", "detecção do sistema", "falha", `Detecção não concluída: ${String(e)}`);
     });
+
+  getAnalysis()
+    .then(renderOtimizacao)
+    .catch((e) => console.error("Falha na análise de otimização:", e));
+
+  renderHistorico().catch((e) => console.error(e));
+  wireHistorico();
 
   const prefs = await loadPrefs();
   applyTheme(prefs.theme);
@@ -119,3 +135,34 @@ window.addEventListener("DOMContentLoaded", async () => {
     });
   }
 });
+
+function wireHistorico(): void {
+  const filtroCategoria = document.getElementById("filtro-categoria");
+  const filtroResultado = document.getElementById("filtro-resultado");
+  const btnLimpar = document.getElementById("btn-limpar-historico");
+
+  [filtroCategoria, filtroResultado].forEach((el) =>
+    el?.addEventListener("change", () => {
+      renderHistorico().catch((e) => console.error(e));
+    }),
+  );
+
+  btnLimpar?.addEventListener("click", () => {
+    const confirmed = window.confirm(
+      "Isso removerá permanentemente todos os eventos registrados do histórico local. Confirma?",
+    );
+    if (!confirmed) return;
+
+    clearEvents()
+      .then(() => {
+        recordEvent(
+          "sistema",
+          "limpar histórico",
+          "concluido",
+          "Histórico local de eventos removido a pedido do usuário",
+        );
+        renderHistorico().catch((e) => console.error(e));
+      })
+      .catch((e) => console.error("Falha ao limpar histórico:", e));
+  });
+}

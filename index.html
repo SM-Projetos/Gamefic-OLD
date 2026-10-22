@@ -175,39 +175,42 @@
         <section class="page" id="page-otimizacao">
           <h1 class="page-title">Otimização</h1>
           <p class="page-desc">Análise de oportunidades e perfis para preparar o computador para jogos.</p>
-          <h2 class="page__section-title">Perfis (estrutura — ativação na Etapa 4)</h2>
-          <div class="grid">
-            <div class="card card--interactive" tabindex="0">
-              <div class="card-head"><span class="card__title">Equilibrado</span></div>
-              <p class="muted">Sem alterações agressivas; balanceamento entre desempenho e consumo.</p>
-            </div>
-            <div class="card card--interactive" tabindex="0">
-              <div class="card-head"><span class="card__title">Gamer</span></div>
-              <p class="muted">Prioriza desempenho em jogos.</p>
-            </div>
-            <div class="card card--interactive" tabindex="0">
-              <div class="card-head"><span class="card__title">Economia de energia</span></div>
-              <p class="muted">Reduz consumo e calor; desempenho menor.</p>
-            </div>
-          </div>
-          <h2 class="page__section-title">Recomendações</h2>
-          <div class="empty">
-            <div class="empty__icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.7 1.7 0 0 0 .34 1.87l.06.06a2 2 0 1 1-2.83 2.83l-.06-.06a1.7 1.7 0 0 0-1.87-.34 1.7 1.7 0 0 0-1.03 1.56V21a2 2 0 1 1-4 0v-.09a1.7 1.7 0 0 0-1.03-1.56 1.7 1.7 0 0 0-1.87.34l-.06.06a2 2 0 1 1-2.83-2.83l.06-.06A1.7 1.7 0 0 0 4.6 15a1.7 1.7 0 0 0-1.56-1.03H3a2 2 0 1 1 0-4h.09A1.7 1.7 0 0 0 4.6 8.94a1.7 1.7 0 0 0-.34-1.87l-.06-.06a2 2 0 1 1 2.83-2.83l.06.06a1.7 1.7 0 0 0 1.87.34h.09a1.7 1.7 0 0 0 1.03-1.55V3a2 2 0 1 1 4 0v.09a1.7 1.7 0 0 0 1.03 1.56 1.7 1.7 0 0 0 1.87-.34l.06-.06a2 2 0 1 1 2.83 2.83l-.06.06a1.7 1.7 0 0 0-.34 1.87v.09c.22.63.79 1.06 1.46 1.03H21a2 2 0 1 1 0 4h-.09a1.7 1.7 0 0 0-1.51 1.03Z"/></svg>
-            </div>
-            <p>As recomendações serão geradas a partir de dados reais detectados (Etapa 4).</p>
-          </div>
+          <h2 class="page__section-title">Estados do sistema</h2>
+          <div class="grid" id="opt-recursos"></div>
+          <h2 class="page__section-title">Recomendações (analisadas a partir do sistema)</h2>
+          <div class="grid" id="opt-recomendacoes"></div>
+          <h2 class="page__section-title">Perfis — estrutura (ativação em etapa futura)</h2>
+          <div class="grid" id="opt-perfis"></div>
         </section>
 
         <section class="page" id="page-historico">
           <h1 class="page-title">Histórico e Diagnósticos</h1>
-          <p class="page-desc">Eventos e operações registradas pelo Gamefic.</p>
-          <div class="empty">
-            <div class="empty__icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>
+          <p class="page-desc" style="display:flex; align-items:center; gap: var(--space-4);">Eventos e operações registradas pelo Gamefic.</p>
+          <div class="card" style="display:flex; align-items:center; gap: var(--space-4); margin-bottom: var(--space-4);">
+            <div class="field">
+              <label class="field__label" for="filtro-categoria">Categoria</label>
+              <select class="field__control" id="filtro-categoria" style="width: auto;">
+                <option value="">Todas</option>
+                <option value="sistema">Sistema</option>
+                <option value="deteccao">Detecção</option>
+                <option value="configuracao">Configuração</option>
+                <option value="otimizacao">Otimização</option>
+                <option value="diagnostico">Diagnóstico</option>
+              </select>
             </div>
-            <p>Nenhum evento registrado ainda. Persistência do histórico na Etapa 4.</p>
+            <div class="field">
+              <label class="field__label" for="filtro-resultado">Resultado</label>
+              <select class="field__control" id="filtro-resultado" style="width: auto;">
+                <option value="">Todos</option>
+                <option value="concluido">Concluído</option>
+                <option value="falha">Falha</option>
+                <option value="cancelado">Cancelado</option>
+              </select>
+            </div>
+            <span class="topbar__spacer"></span>
+            <button class="btn btn--danger btn--small" id="btn-limpar-historico" type="button">Limpar histórico</button>
           </div>
+          <ul class="card" id="lista-eventos" style="display:flex; flex-direction:column; gap: var(--space-3);"></ul>
         </section>
       </main>
     </div>

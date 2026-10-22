@@ -3,7 +3,9 @@ use std::path::PathBuf;
 use std::sync::Arc;
 use tauri::Manager;
 
+pub mod events;
 pub mod monitor;
+pub mod recommendations;
 pub mod system;
 
 #[derive(Debug)]
@@ -77,18 +79,44 @@ fn get_system_info() -> system::SystemSnapshot {
     system::snapshot()
 }
 
+#[tauri::command]
+fn get_analysis() -> recommendations::Analysis {
+    let snapshot = system::snapshot();
+    recommendations::analyze(&snapshot)
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
         .manage(Arc::new(monitor::MonitorInner::default()) as monitor::MonitorState)
+        .manage(Arc::new(events::EventsState::default()) as events::SharedEvents)
+        .setup(|app| {
+            use events::{EventCategory, EventResult};
+
+            events::record(
+                app.handle(),
+                &app.state::<events::SharedEvents>().inner().clone(),
+                EventCategory::Sistema,
+                "inicialização",
+                EventResult::Concluido,
+                &format!("Gamefic iniciado (v{})", app.package_info().version),
+                None,
+            );
+            Ok(())
+        })
         .invoke_handler(tauri::generate_handler![
             get_setting,
             set_setting,
             get_system_info,
             monitor::start_monitoring,
             monitor::stop_monitoring,
-            monitor::get_history
+            monitor::get_history,
+            events::add_event,
+            events::get_events,
+            events::clear_events,
+            get_system_info,
+            get_analysis
         ])
         .run(tauri::generate_context!())
         .expect("erro ao executar o Gamefic");
