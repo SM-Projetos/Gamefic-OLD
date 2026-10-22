@@ -13,9 +13,11 @@
     "withGlobalTauri": true,
     "windows": [
       {
-        "title": "gamefic",
-        "width": 800,
-        "height": 600
+        "title": "Gamefic",
+        "width": 1100,
+        "height": 700,
+        "minWidth": 860,
+        "minHeight": 560
       }
     ],
     "security": {

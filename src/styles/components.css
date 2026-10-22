@@ -1,0 +1,372 @@
+/* Componentes reutilizáveis do Gamefic */
+
+/* ---------- Cartões ---------- */
+.card {
+  background: var(--bg-card);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-card);
+  box-shadow: var(--shadow-card);
+  padding: var(--space-5);
+}
+
+.card--interactive:hover {
+  border-color: var(--accent-purple);
+  box-shadow: var(--glow-accent);
+  transition: border-color var(--t-fast), box-shadow var(--t-fast);
+}
+
+.card--recommendation {
+  border-left: 3px solid var(--accent-purple);
+}
+
+.card-head {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  margin-bottom: var(--space-4);
+}
+
+.card__title {
+  font-size: var(--text-section);
+  font-weight: var(--weight-semibold);
+}
+
+.card__subtitle {
+  font-size: var(--text-aux);
+  color: var(--text-dim);
+}
+
+/* ---------- Botões ---------- */
+.btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  height: var(--control-height);
+  padding: 0 var(--space-5);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-card);
+  color: var(--text);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  cursor: pointer;
+  transition: border-color var(--t-fast), background var(--t-fast), box-shadow var(--t-fast),
+    transform var(--t-fast);
+}
+
+.btn:hover {
+  border-color: var(--accent-purple);
+}
+
+.btn:active {
+  transform: translateY(1px);
+}
+
+.btn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.btn--primary {
+  background: var(--accent-purple);
+  border-color: var(--accent-purple);
+  color: #ffffff;
+  box-shadow: var(--glow-accent);
+}
+
+.btn--primary:hover {
+  background: var(--accent-purple-bright);
+}
+
+.btn--secondary {
+  background: var(--bg-surface);
+}
+
+.btn--danger {
+  border-color: var(--accent-red);
+  background: var(--accent-red-translucent);
+  color: var(--accent-red);
+}
+
+.btn--small {
+  height: 32px;
+  padding: 0 var(--space-4);
+  font-size: var(--text-aux);
+}
+
+/* ---------- Indicadores de status (cápsula) ---------- */
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 12px;
+  border-radius: var(--radius-capsule);
+  font-size: var(--text-aux);
+  font-weight: var(--weight-medium);
+  border: var(--border-width) solid transparent;
+}
+
+.pill::before {
+  content: "";
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.pill--ok {
+  color: var(--accent-green);
+  background: var(--accent-green-translucent);
+  border-color: var(--accent-green);
+}
+
+.pill--info {
+  color: var(--accent-cyan);
+  background: var(--accent-cyan-translucent);
+  border-color: var(--accent-cyan);
+}
+
+.pill--warn {
+  color: var(--accent-amber);
+  background: var(--accent-amber-translucent);
+  border-color: var(--accent-amber);
+}
+
+.pill--error {
+  color: var(--accent-red);
+  background: var(--accent-red-translucent);
+  border-color: var(--accent-red);
+}
+
+/* ---------- Campos ---------- */
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+}
+
+.field__label {
+  font-size: var(--text-aux);
+  font-weight: var(--weight-medium);
+  color: var(--text-dim);
+}
+
+.field__control {
+  height: var(--control-height);
+  padding: 0 var(--space-3);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-control);
+  background: var(--bg-surface);
+  color: var(--text);
+  font-family: inherit;
+  font-size: var(--text-body);
+  transition: border-color var(--t-fast);
+}
+
+.field__control:focus {
+  outline: none;
+  border-color: var(--accent-purple);
+  box-shadow: var(--glow-accent);
+}
+
+select.field__control {
+  cursor: pointer;
+}
+
+/* ---------- Alertas ---------- */
+.alert {
+  display: flex;
+  gap: var(--space-3);
+  padding: var(--space-4);
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-surface);
+  font-size: var(--text-body);
+}
+
+.alert--ok {
+  border-color: var(--accent-green);
+  background: var(--accent-green-translucent);
+}
+
+.alert--warn {
+  border-color: var(--accent-amber);
+  background: var(--accent-amber-translucent);
+}
+
+.alert--error {
+  border-color: var(--accent-red);
+  background: var(--accent-red-translucent);
+}
+
+/* ---------- Notificações ---------- */
+.notifications {
+  position: fixed;
+  top: 64px;
+  right: var(--space-4);
+  z-index: 80;
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-2);
+  width: 320px;
+}
+
+.toast {
+  padding: var(--space-3) var(--space-4);
+  border: var(--border-width) solid var(--border);
+  border-left-width: 3px;
+  border-radius: var(--radius-card);
+  background: var(--bg-card);
+  box-shadow: var(--shadow-pop);
+  font-size: var(--text-aux);
+  animation: toast-in var(--t-med) ease;
+}
+
+.toast--ok {
+  border-left-color: var(--accent-green);
+}
+
+.toast--error {
+  border-left-color: var(--accent-red);
+}
+
+.toast--info {
+  border-left-color: var(--accent-cyan);
+}
+
+@keyframes toast-in {
+  from {
+    opacity: 0;
+    transform: translateX(12px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ---------- Progresso ---------- */
+.progress {
+  height: 8px;
+  border-radius: var(--radius-capsule);
+  background: var(--bg-surface);
+  border: var(--border-width) solid var(--border);
+  overflow: hidden;
+}
+
+.progress__bar {
+  height: 100%;
+  width: 0;
+  background: linear-gradient(90deg, var(--accent-purple), var(--accent-cyan));
+  border-radius: inherit;
+  transition: width var(--t-slow);
+}
+
+/* ---------- Estado vazio ---------- */
+.empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-3);
+  padding: var(--space-8);
+  text-align: center;
+  color: var(--text-dim);
+}
+
+.empty__icon {
+  opacity: 0.5;
+}
+
+/* ---------- Diálogo ---------- */
+dialog.dialog {
+  border: var(--border-width) solid var(--border);
+  border-radius: var(--radius-card);
+  background: var(--bg-card);
+  color: var(--text);
+  padding: 0;
+  box-shadow: var(--shadow-pop);
+}
+
+dialog.dialog::backdrop {
+  background: rgba(5, 6, 10, 0.6);
+}
+
+.dialog__header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: var(--space-4) var(--space-5);
+  border-bottom: var(--border-width) solid var(--border);
+}
+
+.dialog__body {
+  padding: var(--space-5);
+}
+
+.dialog__footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-top: var(--border-width) solid var(--border);
+}
+
+/* ---------- Switch ---------- */
+.switch {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-3);
+  cursor: pointer;
+}
+
+.switch input {
+  position: absolute;
+  opacity: 0;
+}
+
+.switch__track {
+  position: relative;
+  width: 40px;
+  height: 22px;
+  border-radius: var(--radius-capsule);
+  background: var(--bg-surface);
+  border: var(--border-width) solid var(--border);
+  transition: background var(--t-fast), border-color var(--t-fast);
+}
+
+.switch__track::after {
+  content: "";
+  position: absolute;
+  top: 2px;
+  left: 2px;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  background: var(--text-dim);
+  transition: transform var(--t-fast), background var(--t-fast);
+}
+
+.switch input:checked + .switch__track {
+  background: var(--accent-purple-translucent);
+  border-color: var(--accent-purple);
+}
+
+.switch input:checked + .switch__track::after {
+  transform: translateX(18px);
+  background: var(--accent-purple-bright);
+}
+
+.switch input:focus-visible + .switch__track {
+  outline: 2px solid var(--accent-purple);
+  outline-offset: 2px;
+}
+
+.switch__label {
+  font-size: var(--text-body);
+}
+
+.muted {
+  color: var(--text-dim);
+}

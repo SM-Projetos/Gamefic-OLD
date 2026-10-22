@@ -1,22 +1,57 @@
-import { invoke } from "@tauri-apps/api/core";
+import { applyTheme, applyReducedMotion } from "./motion";
+import { initNav } from "./nav";
+import { loadPrefs, savePrefs } from "./prefs";
+import type { ThemeChoice } from "./motion";
 
-let greetInputEl: HTMLInputElement | null;
-let greetMsgEl: HTMLElement | null;
+window.addEventListener("DOMContentLoaded", async () => {
+  const prefs = await loadPrefs();
+  applyTheme(prefs.theme);
+  applyReducedMotion(prefs.reducedMotion);
 
-async function greet() {
-  if (greetMsgEl && greetInputEl) {
-    // Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-    greetMsgEl.textContent = await invoke("greet", {
-      name: greetInputEl.value,
+  initNav();
+
+  const settingsPanel = document.getElementById("settings-panel");
+  const btnSettings = document.getElementById("btn-settings");
+  const btnClose = document.getElementById("btn-settings-close");
+  const selectTheme = document.getElementById("select-tema") as HTMLSelectElement | null;
+  const switchMotion = document.getElementById("switch-movimento") as HTMLInputElement | null;
+
+  if (selectTheme) {
+    selectTheme.value = prefs.theme;
+    selectTheme.addEventListener("change", () => {
+      const choice = (selectTheme.value as ThemeChoice) ?? "dark";
+      applyTheme(choice);
+      prefs.theme = choice;
+      savePrefs(prefs);
     });
   }
-}
 
-window.addEventListener("DOMContentLoaded", () => {
-  greetInputEl = document.querySelector("#greet-input");
-  greetMsgEl = document.querySelector("#greet-msg");
-  document.querySelector("#greet-form")?.addEventListener("submit", (e) => {
-    e.preventDefault();
-    greet();
-  });
+  if (switchMotion) {
+    switchMotion.checked = prefs.reducedMotion;
+    switchMotion.addEventListener("change", () => {
+      const enabled = switchMotion.checked;
+      applyReducedMotion(enabled);
+      prefs.reducedMotion = enabled;
+      savePrefs(prefs);
+    });
+  }
+
+  if (settingsPanel && btnSettings && btnClose) {
+    const open = () => {
+      settingsPanel.classList.add("settings-panel--open");
+      btnClose.focus();
+    };
+    const close = () => {
+      settingsPanel.classList.remove("settings-panel--open");
+      btnSettings.focus();
+    };
+    btnSettings.addEventListener("click", open);
+    btnClose.addEventListener("click", close);
+    settingsPanel.addEventListener("click", (e) => {
+      if (e.target === settingsPanel) close();
+    });
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape" && settingsPanel.classList.contains("settings-panel--open")) close();
+    });
+  }
 });

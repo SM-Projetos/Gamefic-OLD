@@ -1,0 +1,289 @@
+/* Layout da janela do Gamefic: navegação lateral, barra superior, conteúdo */
+
+.app {
+  display: grid;
+  grid-template-columns: 224px 1fr;
+  grid-template-rows: 56px 1fr;
+  grid-template-areas:
+    "sidebar topbar"
+    "sidebar content";
+  height: 100vh;
+}
+
+/* ---------- Navegação lateral ---------- */
+.sidebar {
+  grid-area: sidebar;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-nav);
+  border-right: var(--border-width) solid var(--border);
+  padding: var(--space-4);
+}
+
+.brand {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-2) var(--space-3) var(--space-5);
+}
+
+.brand__mark {
+  width: 32px;
+  height: 32px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, var(--accent-purple), var(--accent-cyan));
+  box-shadow: var(--glow-accent);
+}
+
+.brand__name {
+  font-size: 16px;
+  font-weight: var(--weight-bold);
+  letter-spacing: 0.3px;
+}
+
+.nav {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-1);
+  flex: 1;
+}
+
+.nav__item {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: 10px var(--space-3);
+  border: none;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-dim);
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+  text-align: left;
+  cursor: pointer;
+  transition: color var(--t-fast), background var(--t-fast), box-shadow var(--t-fast);
+}
+
+.nav__item:hover {
+  color: var(--text);
+  background: var(--bg-surface);
+}
+
+.nav__item--active {
+  color: var(--text);
+  background: var(--accent-purple-translucent);
+  box-shadow: inset 2px 0 0 var(--accent-purple);
+}
+
+.nav__item svg {
+  flex-shrink: 0;
+}
+
+/* ---------- Barra superior ---------- */
+.topbar {
+  grid-area: topbar;
+  display: flex;
+  align-items: center;
+  gap: var(--space-4);
+  padding: 0 var(--space-6);
+  background: var(--bg-nav);
+  border-bottom: var(--border-width) solid var(--border);
+}
+
+.topbar__title {
+  font-size: var(--text-section);
+  font-weight: var(--weight-semibold);
+}
+
+.topbar__spacer {
+  flex: 1;
+}
+
+.topbar__status {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+}
+
+.icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  border: none;
+  border-radius: var(--radius-control);
+  background: transparent;
+  color: var(--text-dim);
+  cursor: pointer;
+  transition: color var(--t-fast), background var(--t-fast), transform var(--t-fast);
+}
+
+.icon-btn:hover {
+  color: var(--text);
+  background: var(--bg-surface);
+}
+
+.icon-btn:active {
+  transform: scale(0.94);
+}
+
+/* ---------- Área de conteúdo ---------- */
+.content {
+  grid-area: content;
+  overflow-y: auto;
+  padding: var(--space-6);
+}
+
+.page {
+  display: none;
+  max-width: 980px;
+  margin: 0 auto;
+}
+
+.page--active {
+  display: block;
+  animation: page-in var(--t-med) ease;
+}
+
+@keyframes page-in {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.page-title {
+  font-size: var(--text-page);
+  font-weight: var(--weight-bold);
+  margin-bottom: var(--space-2);
+}
+
+.page-desc {
+  color: var(--text-dim);
+  margin-bottom: var(--space-6);
+}
+
+.page__section-title {
+  font-size: var(--text-section);
+  font-weight: var(--weight-semibold);
+  margin: var(--space-6) 0 var(--space-4);
+}
+
+.grid {
+  display: grid;
+  gap: var(--space-4);
+  grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+}
+
+.grid--2 {
+  grid-template-columns: repeat(auto-fit, minmax(380px, 1fr));
+}
+
+/* ---------- Painel de configurações ---------- */
+.settings-panel {
+  position: fixed;
+  inset: 0;
+  z-index: 60;
+  display: none;
+  justify-content: flex-end;
+  background: rgba(5, 6, 10, 0.5);
+}
+
+.settings-panel--open {
+  display: flex;
+}
+
+.settings {
+  width: min(420px, 90vw);
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-card);
+  border-left: var(--border-width) solid var(--border);
+  box-shadow: var(--shadow-pop);
+  animation: settings-in var(--t-slow) ease;
+}
+
+@keyframes settings-in {
+  from {
+    transform: translateX(40px);
+    opacity: 0;
+  }
+  to {
+    transform: none;
+    opacity: 1;
+  }
+}
+
+.settings__header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-3);
+  padding: var(--space-4) var(--space-5);
+  border-bottom: var(--border-width) solid var(--border);
+}
+
+.settings__title {
+  font-size: var(--text-section);
+  font-weight: var(--weight-semibold);
+}
+
+.settings__body {
+  flex: 1;
+  overflow-y: auto;
+  padding: var(--space-5);
+}
+
+.settings__option {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: var(--space-4);
+  padding: var(--space-3) 0;
+  border-bottom: var(--border-width) solid var(--border);
+}
+
+.settings__option:last-child {
+  border-bottom: none;
+}
+
+.settings__name {
+  font-size: var(--text-body);
+}
+
+.settings__about dl {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2) var(--space-4);
+  margin: 0;
+}
+
+.settings__about dt {
+  color: var(--text-dim);
+}
+
+.settings__about dd {
+  margin: 0;
+  text-align: right;
+}
+
+/* Controles de rótulo no histórico */
+.kv {
+  display: grid;
+  grid-template-columns: auto 1fr;
+  gap: var(--space-2) var(--space-4);
+  font-size: var(--text-body);
+}
+
+.kv dt {
+  color: var(--text-dim);
+}
+
+.kv dd {
+  margin: 0;
+}
