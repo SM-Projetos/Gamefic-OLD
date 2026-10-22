@@ -1,7 +1,9 @@
+import { invoke } from "@tauri-apps/api/core";
 import { applyTheme, applyReducedMotion } from "./motion";
 import { initNav } from "./nav";
 import { loadPrefs, savePrefs } from "./prefs";
 import { getSystemInfo, renderKernels, renderVisaoGeral } from "./system";
+import { Monitor } from "./monitor";
 import type { SystemSnapshot } from "./system";
 import type { ThemeChoice } from "./motion";
 
@@ -10,7 +12,7 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   const setStatus = (kind: string, text: string) => {
     if (statusIndicator) {
-      statusIndicator.innerHTML = `<span class="pill pill--${kind}" id="pill-warning-${kind}"></span>`;
+      statusIndicator.innerHTML = `<span class="pill pill--${kind}"></span>`;
       const pill = statusIndicator.firstElementChild as HTMLElement | null;
       if (pill) pill.textContent = text;
     }
@@ -33,7 +35,44 @@ window.addEventListener("DOMContentLoaded", async () => {
   applyTheme(prefs.theme);
   applyReducedMotion(prefs.reducedMotion);
 
-  initNav();
+  initNav((tab) => {
+    if (tab === "desempenho") monitor.render();
+  });
+
+  const monitor = new Monitor((intervalMs) => {
+    prefs.monitorIntervalMs = intervalMs;
+    savePrefs(prefs);
+    invoke("stop_monitoring").catch(() => {});
+    invoke("start_monitoring", { intervalMs }).catch((e) =>
+      console.error("Falha ao reiniciar monitoramento:", e),
+    );
+  });
+
+  const selectInterval = document.getElementById(
+    "select-intervalo",
+  ) as HTMLSelectElement | null;
+  if (selectInterval) {
+    selectInterval.value = String(prefs.monitorIntervalMs);
+    selectInterval.addEventListener("change", () => {
+      monitor.setInterval(Number(selectInterval.value));
+    });
+  }
+
+  monitor
+    .init()
+    .then(() => {
+      monitor.show(document.getElementById("page-desempenho"));
+      invoke("start_monitoring", { intervalMs: prefs.monitorIntervalMs }).catch((e) =>
+        console.error("Falha ao iniciar monitoramento:", e),
+      );
+      const estado = document.getElementById("monitor-estado");
+      if (estado) estado.textContent = "Coleta ativa";
+    })
+    .catch((e) => {
+      console.error("Falha na coleta de métricas:", e);
+      const estado = document.getElementById("monitor-estado");
+      if (estado) estado.textContent = "Monitoramento indisponível";
+    });
 
   const settingsPanel = document.getElementById("settings-panel");
   const btnSettings = document.getElementById("btn-settings");

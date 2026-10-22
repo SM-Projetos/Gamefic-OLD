@@ -1,7 +1,9 @@
 use std::fs;
 use std::path::PathBuf;
+use std::sync::Arc;
 use tauri::Manager;
 
+pub mod monitor;
 pub mod system;
 
 #[derive(Debug)]
@@ -79,7 +81,15 @@ fn get_system_info() -> system::SystemSnapshot {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_setting, set_setting, get_system_info])
+        .manage(Arc::new(monitor::MonitorInner::default()) as monitor::MonitorState)
+        .invoke_handler(tauri::generate_handler![
+            get_setting,
+            set_setting,
+            get_system_info,
+            monitor::start_monitoring,
+            monitor::stop_monitoring,
+            monitor::get_history
+        ])
         .run(tauri::generate_context!())
         .expect("erro ao executar o Gamefic");
 }

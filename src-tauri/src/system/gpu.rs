@@ -4,6 +4,42 @@ use std::path::Path;
 
 use super::GpuInfo;
 
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct GpuMetrics {
+    pub utilization_percent: Option<f32>,
+    pub mem_used_mb: Option<f32>,
+    pub temp_c: Option<f32>,
+}
+
+pub fn metrics() -> Option<GpuMetrics> {
+    let output = std::process::Command::new("nvidia-smi")
+        .args([
+            "--query-gpu=utilization.gpu,memory.used,temperature.gpu",
+            "--format=csv,noheader,nounits",
+        ])
+        .output()
+        .ok()?;
+
+    if !output.status.success() {
+        return None;
+    }
+
+    let text = String::from_utf8_lossy(&output.stdout);
+    let line = text.lines().next()?;
+    let fields: Vec<&str> = line.split(',').map(|f| f.trim()).collect();
+
+    if fields.len() < 3 {
+        return None;
+    }
+
+    Some(GpuMetrics {
+        utilization_percent: fields.first().and_then(|f| f.parse().ok()),
+        mem_used_mb: fields.get(1).and_then(|f| f.parse().ok()),
+        temp_c: fields.get(2).and_then(|f| f.parse().ok()),
+    })
+}
+
 pub fn detect() -> Vec<GpuInfo> {
     let mut gpus: Vec<GpuInfo> = Vec::new();
 

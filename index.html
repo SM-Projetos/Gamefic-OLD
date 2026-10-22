@@ -93,11 +93,44 @@
         <section class="page" id="page-desempenho">
           <h1 class="page-title">Desempenho</h1>
           <p class="page-desc">Monitoramento dos recursos do sistema em tempo real.</p>
-          <div class="empty">
-            <div class="empty__icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-7 5 14 2.5-7h4"/></svg>
+          <div class="card" style="display:flex; align-items:center; gap: var(--space-4);">
+            <div class="field">
+              <label class="field__label" for="select-intervalo">Intervalo de coleta</label>
+              <select class="field__control" id="select-intervalo" style="width: auto;">
+                <option value="1000">1 segundo</option>
+                <option value="2000">2 segundos</option>
+                <option value="5000">5 segundos</option>
+              </select>
             </div>
-            <p>Monitoramento na Etapa 3 — coleta em intervalos controlados, gráficos e histórico da sessão.</p>
+            <span class="muted" id="monitor-estado">Iniciando monitoramento...</span>
+          </div>
+          <div class="grid grid--2" style="margin-top: var(--space-4);">
+            <div class="card">
+              <div class="card-head"><span class="card__title">CPU</span><span class="pill pill--info num" id="num-cpu-percento">—</span></div>
+              <canvas id="grafico-cpu" style="width: 100%; height: 120px;"></canvas>
+              <dl class="kv" style="margin-top: var(--space-3);">
+                <dt>Frequência média</dt><dd id="num-cpu-frequencia" class="num">—</dd>
+              </dl>
+            </div>
+            <div class="card">
+              <div class="card-head"><span class="card__title">Memória RAM</span><span class="pill pill--info num" id="num-ram-uso">—</span></div>
+              <canvas id="grafico-ram" style="width: 100%; height: 120px;"></canvas>
+              <dl class="kv" style="margin-top: var(--space-3);">
+                <dt>Swap em uso</dt><dd id="num-swap-uso" class="num">—</dd>
+              </dl>
+            </div>
+            <div class="card">
+              <div class="card-head"><span class="card__title">GPU</span><span class="pill pill--info num" id="num-gpu-percento">—</span></div>
+              <canvas id="grafico-gpu" style="width: 100%; height: 120px;"></canvas>
+              <dl class="kv" style="margin-top: var(--space-3);">
+                <dt>Memória da GPU</dt><dd id="num-gpu-mem" class="num">—</dd>
+                <dt>Temperatura</dt><dd id="num-gpu-temp" class="num">—</dd>
+              </dl>
+            </div>
+            <div class="card">
+              <div class="card-head"><span class="card__title">Temperatura máxima</span><span class="pill pill--warn num" id="num-temp-maxima">—</span></div>
+              <canvas id="grafico-temp" style="width: 100%; height: 120px;"></canvas>
+            </div>
           </div>
         </section>
 

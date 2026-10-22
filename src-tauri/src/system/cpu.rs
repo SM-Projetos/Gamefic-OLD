@@ -169,7 +169,7 @@ fn looks_like_cpu(name: &str) -> bool {
     name[3..].chars().all(|c| c.is_ascii_digit())
 }
 
-fn usage_percent() -> Option<f32> {
+pub fn usage_percent() -> Option<f32> {
     let first = cpu_times()?;
     std::thread::sleep(std::time::Duration::from_millis(150));
     let second = cpu_times()?;
