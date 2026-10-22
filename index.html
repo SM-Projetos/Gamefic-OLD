@@ -58,32 +58,34 @@
         <section class="page page--active" id="page-visao-geral">
           <h1 class="page-title">Visão geral</h1>
           <p class="page-desc">Centro de controle do jogador — resumo do hardware do sistema.</p>
-          <div class="alert alert--info" style="border-color: var(--accent-cyan); background: var(--accent-cyan-translucent);">A detecção de hardware vem na Etapa 2 do projeto. Os campos abaixo exibirão dados reais quando a detecção for implementada.</div>
+        <div id="original-meio-vazio" style="display:none;"></div>
+        <div class="alert" data-hw="aviso">A detecção usa fontes reais do sistema (sysfs, /proc, lspci, vulkaninfo). Quando um dado não puder ser consultado, é exibido "Não disponível".</div>
           <h2 class="page__section-title">Hardware</h2>
           <div class="grid">
             <div class="card" data-hw="cpu">
               <div class="card-head"><span class="card__title">Processador</span></div>
-              <p class="muted">Não disponível — detecção na Etapa 2</p>
+              <p id="hw-cpu-modelo">Consultando...</p>
+              <p class="muted" id="hw-cpu-detalhe">Consultando...</p>
             </div>
             <div class="card" data-hw="gpu">
               <div class="card-head"><span class="card__title">GPUs</span></div>
-              <p class="muted">Não disponível — detecção na Etapa 2</p>
+              <p id="hw-gpu">Consultando...</p>
             </div>
             <div class="card" data-hw="memoria">
               <div class="card-head"><span class="card__title">Memória em uso</span></div>
-              <p class="muted">Não disponível — detecção na Etapa 2</p>
+              <p id="hw-memoria">Consultando...</p>
             </div>
             <div class="card" data-hw="temperatura">
               <div class="card-head"><span class="card__title">Temperaturas</span></div>
-              <p class="muted">Não disponível — detecção na Etapa 2</p>
+              <p id="hw-temperatura">Consultando...</p>
             </div>
             <div class="card" data-hw="kernel">
               <div class="card-head"><span class="card__title">Kernel e distribuição</span></div>
-              <p class="muted">Não disponível — detecção na Etapa 2</p>
+              <p id="hw-kernel">Consultando...</p>
             </div>
             <div class="card" data-hw="ferramentas">
               <div class="card-head"><span class="card__title">Ferramentas de jogos</span></div>
-              <p class="muted">Não disponível — detecção na Etapa 2</p>
+              <p id="hw-ferramentas">Consultando...</p>
             </div>
           </div>
         </section>
@@ -102,12 +104,39 @@
         <section class="page" id="page-kernels">
           <h1 class="page-title">Kernels e Drivers</h1>
           <p class="page-desc">Informações sobre o kernel, GPUs, drivers e componentes gráficos.</p>
-          <div class="empty">
-            <div class="empty__icon">
-              <svg width="48" height="48" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="8" height="8" rx="1.5"/><path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3"/></svg>
+          <h2 class="page__section-title">Sistema</h2>
+          <div class="grid">
+            <div class="card">
+              <div class="card-head"><span class="card__title">Distribuição</span></div>
+              <dl class="kv">
+                <dt>Distribuição</dt><dd id="kd-distro">Consultando...</dd>
+                <dt>Família</dt><dd id="kd-familia">Consultando...</dd>
+                <dt>Versão</dt><dd id="kd-versao-distribuicao" class="num">Consultando...</dd>
+              </dl>
             </div>
-            <p>Consulta real do kernel, driver gráfico e suporte a Vulkan na Etapa 2.</p>
+            <div class="card">
+              <div class="card-head"><span class="card__title">Kernel</span></div>
+              <dl class="kv">
+                <dt>Em execução</dt><dd id="kd-kernel" class="num">Consultando...</dd>
+                <dt>Arquitetura</dt><dd id="kd-arch" class="num">Consultando...</dd>
+              </dl>
+            </div>
+            <div class="card">
+              <div class="card-head"><span class="card__title">Processador</span></div>
+              <dl class="kv">
+                <dt>Modelo</dt><dd id="kd-cpu-modelo">Consultando...</dd>
+                <dt>Núcleos físicos</dt><dd id="kd-cpu-fisicos" class="num">Consultando...</dd>
+                <dt>Threads</dt><dd id="kd-cpu-threads" class="num">Consultando...</dd>
+                <dt>Frequência base</dt><dd id="kd-cpu-frequencia" class="num">Consultando...</dd>
+              </dl>
+            </div>
           </div>
+          <h2 class="page__section-title">GPUs</h2>
+          <div class="grid" id="kd-gpu-lista"></div>
+          <h2 class="page__section-title">Vulkan</h2>
+          <ul class="card" id="kd-vulkan-lista"></ul>
+          <h2 class="page__section-title">Ferramentas de jogos</h2>
+          <ul class="card" id="kd-ferramentas-lista"></ul>
         </section>
 
         <section class="page" id="page-otimizacao">

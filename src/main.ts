@@ -1,9 +1,34 @@
 import { applyTheme, applyReducedMotion } from "./motion";
 import { initNav } from "./nav";
 import { loadPrefs, savePrefs } from "./prefs";
+import { getSystemInfo, renderKernels, renderVisaoGeral } from "./system";
+import type { SystemSnapshot } from "./system";
 import type { ThemeChoice } from "./motion";
 
 window.addEventListener("DOMContentLoaded", async () => {
+  const statusIndicator = document.getElementById("status-indicator");
+
+  const setStatus = (kind: string, text: string) => {
+    if (statusIndicator) {
+      statusIndicator.innerHTML = `<span class="pill pill--${kind}" id="pill-warning-${kind}"></span>`;
+      const pill = statusIndicator.firstElementChild as HTMLElement | null;
+      if (pill) pill.textContent = text;
+    }
+  };
+
+  setStatus("info", "Detectando sistema...");
+
+  getSystemInfo()
+    .then((snapshot: SystemSnapshot) => {
+      renderVisaoGeral(snapshot);
+      renderKernels(snapshot);
+      setStatus("ok", "Sistema detectado");
+    })
+    .catch((e) => {
+      console.error("Falha na detecção do sistema:", e);
+      setStatus("error", "Detecção indisponível");
+    });
+
   const prefs = await loadPrefs();
   applyTheme(prefs.theme);
   applyReducedMotion(prefs.reducedMotion);

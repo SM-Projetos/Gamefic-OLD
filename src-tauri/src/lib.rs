@@ -2,6 +2,8 @@ use std::fs;
 use std::path::PathBuf;
 use tauri::Manager;
 
+pub mod system;
+
 #[derive(Debug)]
 pub enum PrefsError {
     Io(std::io::Error),
@@ -68,11 +70,16 @@ fn set_setting(
     Ok(())
 }
 
+#[tauri::command]
+fn get_system_info() -> system::SystemSnapshot {
+    system::snapshot()
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![get_setting, set_setting])
+        .invoke_handler(tauri::generate_handler![get_setting, set_setting, get_system_info])
         .run(tauri::generate_context!())
         .expect("erro ao executar o Gamefic");
 }
