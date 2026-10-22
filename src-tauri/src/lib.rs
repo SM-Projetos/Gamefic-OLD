@@ -88,7 +88,6 @@ fn get_analysis() -> recommendations::Analysis {
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
         .manage(Arc::new(monitor::MonitorInner::default()) as monitor::MonitorState)
         .manage(Arc::new(events::EventsState::default()) as events::SharedEvents)
         .setup(|app| {
