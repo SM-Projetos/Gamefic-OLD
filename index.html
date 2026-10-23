@@ -8,6 +8,7 @@
     <link rel="stylesheet" href="/src/styles/base.css" />
     <link rel="stylesheet" href="/src/styles/components.css" />
     <link rel="stylesheet" href="/src/styles/layout.css" />
+    <link rel="stylesheet" href="/src/styles/overview.css" />
     <script type="module" src="/src/main.ts" defer></script>
   </head>
 
@@ -26,7 +27,7 @@
           </button>
           <button class="nav__item" data-tab="desempenho" type="button">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-7 5 14 2.5-7h4"/></svg>
-            Desempenho
+            Hardware e Sistema
           </button>
           <button class="nav__item" data-tab="kernels" type="button">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="8" height="8" rx="1.5"/><path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3"/></svg>
@@ -41,6 +42,11 @@
             Histórico e Diagnósticos
           </button>
         </nav>
+
+        <div class="sys-chip" id="sys-chip">
+          <span class="sys-chip__name">Gamefic</span>
+          <span class="sys-chip__detail num" id="app-version">v0.1.0</span>
+        </div>
       </aside>
 
       <header class="topbar">
@@ -56,80 +62,130 @@
 
       <main class="content">
         <section class="page page--active" id="page-visao-geral">
-          <h1 class="page-title">Visão geral</h1>
-          <p class="page-desc">Centro de controle do jogador — resumo do hardware do sistema.</p>
-        <div id="original-meio-vazio" style="display:none;"></div>
-        <div class="alert" data-hw="aviso">A detecção usa fontes reais do sistema (sysfs, /proc, lspci, vulkaninfo). Quando um dado não puder ser consultado, é exibido "Não disponível".</div>
-          <h2 class="page__section-title">Hardware</h2>
-          <div class="grid">
-            <div class="card" data-hw="cpu">
-              <div class="card-head"><span class="card__title">Processador</span></div>
-              <p id="hw-cpu-modelo">Consultando...</p>
-              <p class="muted" id="hw-cpu-detalhe">Consultando...</p>
+          <div class="hero card">
+            <div class="hero__text">
+              <h2 class="hero__title">Seu sistema para jogos</h2>
+              <p class="hero__desc">Centro de controle do jogador — ferramentas de jogos e acesso rápido ao resto do Gamefic.</p>
             </div>
-            <div class="card" data-hw="gpu">
-              <div class="card-head"><span class="card__title">GPUs</span></div>
-              <p id="hw-gpu">Consultando...</p>
+            <div class="hero__art" aria-hidden="true"></div>
+          </div>
+
+          <h2 class="page__section-title" style="margin-top: var(--space-5);">Ferramentas de jogos</h2>
+          <div class="card tools-card">
+            <div class="tools-grid" id="ov-tools">
+              <p class="muted">Consultando...</p>
             </div>
-            <div class="card" data-hw="memoria">
-              <div class="card-head"><span class="card__title">Memória em uso</span></div>
-              <p id="hw-memoria">Consultando...</p>
-            </div>
-            <div class="card" data-hw="temperatura">
-              <div class="card-head"><span class="card__title">Temperaturas</span></div>
-              <p id="hw-temperatura">Consultando...</p>
-            </div>
-            <div class="card" data-hw="kernel">
-              <div class="card-head"><span class="card__title">Kernel e distribuição</span></div>
-              <p id="hw-kernel">Consultando...</p>
-            </div>
-            <div class="card" data-hw="ferramentas">
-              <div class="card-head"><span class="card__title">Ferramentas de jogos</span></div>
-              <p id="hw-ferramentas">Consultando...</p>
-            </div>
+            <button class="link-arrow" data-tab="otimizacao" type="button">
+              Gerenciar ferramentas
+              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
+            </button>
           </div>
         </section>
 
         <section class="page" id="page-desempenho">
-          <h1 class="page-title">Desempenho</h1>
-          <p class="page-desc">Monitoramento dos recursos do sistema em tempo real.</p>
-          <div class="card" style="display:flex; align-items:center; gap: var(--space-4);">
-            <div class="field">
-              <label class="field__label" for="select-intervalo">Intervalo de coleta</label>
-              <select class="field__control" id="select-intervalo" style="width: auto;">
-                <option value="1000">1 segundo</option>
-                <option value="2000">2 segundos</option>
-                <option value="5000">5 segundos</option>
-              </select>
+          <h1 class="page-title">Hardware e Sistema</h1>
+          <p class="page-desc">Hardware detectado com monitoramento em tempo real e informações do sistema.</p>
+          <span class="muted" id="monitor-estado" hidden>Iniciando monitoramento...</span>
+
+          <div class="ov-grid ov-grid--stats">
+            <div class="card stat-card">
+              <div class="stat-card__head">
+                <span class="stat-card__icon stat-card__icon--purple" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="8" width="8" height="8" rx="1.5"/><path d="M10 3v3M14 3v3M10 18v3M14 18v3M3 10h3M3 14h3M18 10h3M18 14h3"/></svg>
+                </span>
+                <span class="stat-card__title">CPU</span>
+              </div>
+              <p class="stat-card__main" id="dp-cpu-modelo">Consultando...</p>
+              <p class="stat-card__meta" id="dp-cpu-detalhe">Consultando...</p>
+              <div class="ring ring--huge">
+                <svg viewBox="0 0 84 84" width="220" height="220" aria-hidden="true">
+                  <circle class="ring__track" cx="42" cy="42" r="36"/>
+                  <circle class="ring__value ring__value--purple" cx="42" cy="42" r="36" id="dp-cpu-ring"/>
+                </svg>
+                <span class="ring__num ring__num--huge num" id="dp-cpu-ring-num">—</span>
+              </div>
+              <canvas id="dp-cpu-spark" class="spark spark--under"></canvas>
+              <dl class="stat-card__foot">
+                <dt>Frequência</dt><dd class="num" id="dp-cpu-frequencia">—</dd>
+              </dl>
+              <dl class="stat-card__foot stat-card__foot--plain">
+                <dt>Temperatura</dt><dd class="num" id="dp-cpu-temperatura">—</dd>
+              </dl>
             </div>
-            <span class="muted" id="monitor-estado">Iniciando monitoramento...</span>
+
+            <div class="card stat-card">
+              <div class="stat-card__head">
+                <span class="stat-card__icon stat-card__icon--cyan" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="14" rx="2"/><path d="M8 21h8M9 9l-3 3 3 3M15 9l3 3-3 3"/></svg>
+                </span>
+                <span class="stat-card__title">GPU</span>
+              </div>
+              <p class="stat-card__main" id="dp-gpu-modelo">Consultando...</p>
+              <div class="gpu-charts">
+                <div class="gpu-chart">
+                  <span class="gpu-chart__label gpu-chart__label--strong">Uso da GPU</span>
+                  <canvas id="dp-gpu-spark" class="spark"></canvas>
+                </div>
+                <div class="gpu-chart">
+                  <span class="gpu-chart__label gpu-chart__label--strong">Memória da GPU / VRAM</span>
+                  <canvas id="dp-gpu-vram" class="spark"></canvas>
+                </div>
+              </div>
+              <dl class="stat-card__foot">
+                <dt>Temperatura</dt><dd class="num" id="dp-gpu-temperatura">—</dd>
+              </dl>
+            </div>
+
+            <div class="card stat-card">
+              <div class="stat-card__head">
+                <span class="stat-card__icon stat-card__icon--cyan" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="7" width="18" height="10" rx="2"/><path d="M7 11h.01M11 11h2M15 11h2M19 11h2"/></svg>
+                </span>
+                <span class="stat-card__title">Memória RAM</span>
+              </div>
+              <p class="stat-card__main stat-card__main--big num" id="dp-ram-total">— / —</p>
+              <div class="bar" id="dp-ram-bar"><div class="bar__fill"></div></div>
+              <p class="stat-card__meta num" id="dp-ram-pct">Consultando...</p>
+              <div class="bar bar--swap" id="dp-swap-bar"><div class="bar__fill bar__fill--swap"></div></div>
+              <dl class="stat-card__foot stat-card__foot--plain">
+                <dt>Swap</dt><dd class="num" id="dp-swap-uso">—</dd>
+              </dl>
+              <dl class="stat-card__foot">
+                <dt>Disponível</dt><dd class="num" id="dp-ram-disponivel">—</dd>
+              </dl>
+            </div>
+
+            <div class="card stat-card">
+              <div class="stat-card__head">
+                <span class="stat-card__icon stat-card__icon--cyan" aria-hidden="true">
+                  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="4" width="16" height="16" rx="2"/><path d="M4 9h16M9 13v3M12 13v3M15 13v3"/></svg>
+                </span>
+                <span class="stat-card__title">Armazenamento</span>
+              </div>
+              <div class="storage-list" id="dp-storage">
+                <p class="muted">Consultando...</p>
+              </div>
+            </div>
           </div>
-          <div class="grid grid--2" style="margin-top: var(--space-4);">
+
+          <h2 class="page__section-title" style="margin-top: var(--space-5);">Sistema</h2>
+          <div class="grid">
             <div class="card">
-              <div class="card-head"><span class="card__title">CPU</span><span class="pill pill--info num" id="num-cpu-percento">—</span></div>
-              <canvas id="grafico-cpu" style="width: 100%; height: 120px;"></canvas>
-              <dl class="kv" style="margin-top: var(--space-3);">
-                <dt>Frequência média</dt><dd id="num-cpu-frequencia" class="num">—</dd>
+              <div class="card-head"><span class="card__title">Sistema</span></div>
+              <dl class="kv">
+                <dt>Distribuição</dt><dd id="dp-distro">Consultando...</dd>
+                <dt>Kernel</dt><dd id="dp-kernel" class="num">Consultando...</dd>
+                <dt>Arquitetura</dt><dd id="dp-arch" class="num">Consultando...</dd>
+                <dt>Versão do Mesa</dt><dd id="dp-mesa" class="num">Consultando...</dd>
+                <dt>Tempo de atividade</dt><dd id="dp-uptime" class="num">Consultando...</dd>
               </dl>
             </div>
+
             <div class="card">
-              <div class="card-head"><span class="card__title">Memória RAM</span><span class="pill pill--info num" id="num-ram-uso">—</span></div>
-              <canvas id="grafico-ram" style="width: 100%; height: 120px;"></canvas>
-              <dl class="kv" style="margin-top: var(--space-3);">
-                <dt>Swap em uso</dt><dd id="num-swap-uso" class="num">—</dd>
+              <div class="card-head"><span class="card__title">Drivers gráficos</span></div>
+              <dl class="kv" id="dp-drivers">
+                <dt>Consultando...</dt><dd class="muted">—</dd>
               </dl>
-            </div>
-            <div class="card">
-              <div class="card-head"><span class="card__title">GPU</span><span class="pill pill--info num" id="num-gpu-percento">—</span></div>
-              <canvas id="grafico-gpu" style="width: 100%; height: 120px;"></canvas>
-              <dl class="kv" style="margin-top: var(--space-3);">
-                <dt>Memória da GPU</dt><dd id="num-gpu-mem" class="num">—</dd>
-                <dt>Temperatura</dt><dd id="num-gpu-temp" class="num">—</dd>
-              </dl>
-            </div>
-            <div class="card">
-              <div class="card-head"><span class="card__title">Temperatura máxima</span><span class="pill pill--warn num" id="num-temp-maxima">—</span></div>
-              <canvas id="grafico-temp" style="width: 100%; height: 120px;"></canvas>
             </div>
           </div>
         </section>
@@ -241,6 +297,15 @@
               <input type="checkbox" id="switch-movimento" aria-labelledby="label-movimento" />
               <span class="switch__track"></span>
             </label>
+          </div>
+          <h3 class="page__section-title">Monitoramento</h3>
+          <div class="settings__option">
+            <span class="settings__name" id="label-intervalo">Intervalo de coleta</span>
+            <select class="field__control" id="select-intervalo" aria-labelledby="label-intervalo" style="width: auto; height: 34px;">
+              <option value="1000">1 segundo</option>
+              <option value="2000">2 segundos</option>
+              <option value="5000">5 segundos</option>
+            </select>
           </div>
           <h3 class="page__section-title">Aplicativo</h3>
           <div class="settings__about">

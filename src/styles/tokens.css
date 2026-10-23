@@ -21,10 +21,10 @@
   --font-sans: "Inter", system-ui, sans-serif;
   --font-mono: "JetBrains Mono", ui-monospace, monospace;
 
-  --text-page: 26px;
-  --text-section: 18px;
-  --text-body: 14px;
-  --text-aux: 12.5px;
+  --text-page: 28px;
+  --text-section: 20px;
+  --text-body: 16px;
+  --text-aux: 14.5px;
 
   --weight-regular: 400;
   --weight-medium: 500;
@@ -70,6 +70,8 @@
   --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.35);
   --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.45);
   --glow-accent: 0 0 14px rgba(139, 92, 246, 0.35);
+  --card-hover-ring: #8b5cf6;
+  --card-hover-glow: 0 0 16px rgba(139, 92, 246, 0.28);
 
   /* Transições */
   --t-fast: 130ms ease;
@@ -78,23 +80,27 @@
 }
 
 [data-theme="light"] {
-  --bg: #f4f5f8;
-  --bg-nav: #ffffff;
-  --bg-card: #ffffff;
-  --bg-surface: #eceff5;
-  --border: #dce1ea;
-  --text: #191c27;
-  --text-dim: #626b7b;
+  /* Paleta azul clara (referência: mockup de biblioteca do Gamefic) */
+  --bg: #cfe2f8;
+  --bg-nav: #bcd7f8;
+  --bg-card: #e6f1fd;
+  --bg-surface: #f4f9ff;
+  --border: #9fc4f0;
+  --text: #16324f;
+  --text-dim: #4d6f96;
 
-  --accent-purple: #7041d8;
-  --accent-cyan: #087f98;
+  --accent-purple: #2456d6;
+  --accent-purple-bright: #3b82f6;
+  --accent-cyan: #0e7490;
 
-  --accent-purple-translucent: rgba(112, 65, 216, 0.12);
-  --accent-cyan-translucent: rgba(8, 127, 152, 0.12);
+  --accent-purple-translucent: rgba(36, 86, 214, 0.14);
+  --accent-cyan-translucent: rgba(14, 116, 144, 0.12);
   --accent-amber-translucent: rgba(184, 121, 7, 0.14);
   --accent-red-translucent: rgba(198, 40, 40, 0.12);
 
-  --shadow-card: 0 1px 6px rgba(25, 28, 39, 0.08);
-  --shadow-pop: 0 8px 24px rgba(25, 28, 39, 0.14);
-  --glow-accent: 0 0 12px rgba(112, 65, 216, 0.28);
+  --shadow-card: 0 1px 6px rgba(22, 50, 79, 0.12);
+  --shadow-pop: 0 8px 24px rgba(22, 50, 79, 0.18);
+  --glow-accent: 0 0 12px rgba(36, 86, 214, 0.25);
+  --card-hover-ring: #2456d6;
+  --card-hover-glow: 0 0 16px rgba(36, 86, 214, 0.25);
 }

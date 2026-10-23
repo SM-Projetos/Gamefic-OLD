@@ -1,6 +1,6 @@
 const TAB_TITLES: Record<string, string> = {
   "visao-geral": "Visão geral",
-  desempenho: "Desempenho",
+  desempenho: "Hardware e Sistema",
   kernels: "Kernels e Drivers",
   otimizacao: "Otimização",
   historico: "Histórico e Diagnósticos",

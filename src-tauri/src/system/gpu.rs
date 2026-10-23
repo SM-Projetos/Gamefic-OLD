@@ -9,13 +9,14 @@ use super::GpuInfo;
 pub struct GpuMetrics {
     pub utilization_percent: Option<f32>,
     pub mem_used_mb: Option<f32>,
+    pub mem_total_mb: Option<f32>,
     pub temp_c: Option<f32>,
 }
 
 pub fn metrics() -> Option<GpuMetrics> {
     let output = std::process::Command::new("nvidia-smi")
         .args([
-            "--query-gpu=utilization.gpu,memory.used,temperature.gpu",
+            "--query-gpu=utilization.gpu,memory.used,memory.total,temperature.gpu",
             "--format=csv,noheader,nounits",
         ])
         .output()
@@ -29,14 +30,15 @@ pub fn metrics() -> Option<GpuMetrics> {
     let line = text.lines().next()?;
     let fields: Vec<&str> = line.split(',').map(|f| f.trim()).collect();
 
-    if fields.len() < 3 {
+    if fields.len() < 4 {
         return None;
     }
 
     Some(GpuMetrics {
         utilization_percent: fields.first().and_then(|f| f.parse().ok()),
         mem_used_mb: fields.get(1).and_then(|f| f.parse().ok()),
-        temp_c: fields.get(2).and_then(|f| f.parse().ok()),
+        mem_total_mb: fields.get(2).and_then(|f| f.parse().ok()),
+        temp_c: fields.get(3).and_then(|f| f.parse().ok()),
     })
 }
 
@@ -101,6 +103,7 @@ fn inspect_device(path: &Path) -> GpuInfo {
         vendor_name: None,
         device_name: None,
         driver: driver_of(path),
+        driver_version: None,
     }
 }
 
