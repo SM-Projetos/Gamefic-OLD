@@ -25,6 +25,7 @@ pub struct MetricSample {
     pub temp_label: Option<String>,
     pub gpu_utilization_percent: Option<f32>,
     pub gpu_mem_used_mb: Option<f32>,
+    pub gpu_mem_total_mb: Option<f32>,
     pub gpu_temp_c: Option<f32>,
 }
 
@@ -82,6 +83,7 @@ fn collect_sample() -> MetricSample {
         temp_label: hottest.map(|t| format!("{}·{}", t.chip, t.label)),
         gpu_utilization_percent: gpu_metrics.as_ref().and_then(|g| g.utilization_percent),
         gpu_mem_used_mb: gpu_metrics.as_ref().and_then(|g| g.mem_used_mb),
+        gpu_mem_total_mb: gpu_metrics.as_ref().and_then(|g| g.mem_total_mb),
         gpu_temp_c: gpu_metrics.as_ref().and_then(|g| g.temp_c),
     }
 }

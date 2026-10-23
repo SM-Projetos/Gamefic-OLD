@@ -35,6 +35,7 @@ export function drawChart(
   maxY: number,
   style: ChartStyle,
   unit: string,
+  clear = true,
 ): void {
   const width = canvas.clientWidth;
   const height = canvas.clientHeight;
@@ -45,7 +46,7 @@ export function drawChart(
   const ctx = canvas.getContext("2d");
   if (!ctx) return;
   ctx.setTransform(DPR, 0, 0, DPR, 0, 0);
-  ctx.clearRect(0, 0, width, height);
+  if (clear) ctx.clearRect(0, 0, width, height);
 
   const padL = 4;
   const padB = 4;
@@ -53,19 +54,21 @@ export function drawChart(
   const plotH = Math.max(1, height - padB);
 
   const grid = style.grid ?? "rgba(128, 132, 148, 0.22)";
-  ctx.strokeStyle = grid;
-  ctx.lineWidth = 1;
-  for (let i = 0; i <= 4; i += 1) {
-    const y = (plotH / 4) * i + 0.5;
-    ctx.beginPath();
-    ctx.moveTo(0, y);
-    ctx.lineTo(width, y);
-    ctx.stroke();
+  if (clear) {
+    ctx.strokeStyle = grid;
+    ctx.lineWidth = 1;
+    for (let i = 0; i <= 4; i += 1) {
+      const y = (plotH / 4) * i + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(width, y);
+      ctx.stroke();
+    }
   }
 
   if (data.length < 2 || data.every((v) => v == null)) {
     ctx.fillStyle = "var(--text-dim)".startsWith("var") ? "#9aa0b4" : "#9aa0b4";
-    ctx.font = "12px 'Inter', sans-serif";
+    ctx.font = "13px 'Inter', sans-serif";
     ctx.textAlign = "center";
     ctx.fillText("sem dados", width / 2, height / 2);
     return;
@@ -114,7 +117,7 @@ export function drawChart(
   });
 
   ctx.fillStyle = "#9aa0b4";
-  ctx.font = "10px 'JetBrains Mono', monospace";
+  ctx.font = "11px 'JetBrains Mono', monospace";
   ctx.textAlign = "left";
   ctx.fillText(`${maxY}${unit}`, 2, 10);
 }

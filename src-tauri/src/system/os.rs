@@ -62,6 +62,12 @@ pub fn detect_kernel() -> Option<String> {
     }
 }
 
+pub fn detect_uptime_seconds() -> Option<u64> {
+    let text = std::fs::read_to_string("/proc/uptime").ok()?;
+    let first = text.split_whitespace().next()?;
+    first.parse::<f64>().ok().map(|s| s as u64)
+}
+
 pub fn detect_arch() -> Option<String> {
     match std::fs::read_to_string("/proc/sys/kernel/arch") {
         Ok(arch) => {

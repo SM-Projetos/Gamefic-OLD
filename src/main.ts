@@ -1,4 +1,5 @@
 import { invoke } from "@tauri-apps/api/core";
+import { getVersion } from "@tauri-apps/api/app";
 import { applyTheme, applyReducedMotion } from "./motion";
 import { initNav } from "./nav";
 import { loadPrefs, savePrefs } from "./prefs";
@@ -15,6 +16,16 @@ import type { SystemSnapshot } from "./system";
 import type { ThemeChoice } from "./motion";
 
 window.addEventListener("DOMContentLoaded", async () => {
+  getVersion().then((v) => {
+    const el = document.getElementById("app-version");
+    if (el) el.textContent = `v${v}`;
+  }).catch(() => {});
+
+  const monitorEstado = document.getElementById("monitor-estado");
+
+  const setMonitorEstado = (text: string) => {
+    if (monitorEstado) monitorEstado.textContent = text;
+  };
   const statusIndicator = document.getElementById("status-indicator");
 
   const setStatus = (kind: string, text: string) => {
@@ -81,13 +92,11 @@ window.addEventListener("DOMContentLoaded", async () => {
       invoke("start_monitoring", { intervalMs: prefs.monitorIntervalMs }).catch((e) =>
         console.error("Falha ao iniciar monitoramento:", e),
       );
-      const estado = document.getElementById("monitor-estado");
-      if (estado) estado.textContent = "Coleta ativa";
+      setMonitorEstado("Coleta ativa");
     })
     .catch((e) => {
       console.error("Falha na coleta de métricas:", e);
-      const estado = document.getElementById("monitor-estado");
-      if (estado) estado.textContent = "Monitoramento indisponível";
+      setMonitorEstado("Monitoramento indisponível");
     });
 
   const settingsPanel = document.getElementById("settings-panel");
