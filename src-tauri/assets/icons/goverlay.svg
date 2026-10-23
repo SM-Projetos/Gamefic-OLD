@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="screenGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#111822" />
+      <stop offset="35%" stop-color="#152438" />
+      <stop offset="70%" stop-color="#0F4C75" />
+      <stop offset="92%" stop-color="#0284C7" />
+      <stop offset="100%" stop-color="#4895EF" />
+    </linearGradient>
+
+    <linearGradient id="screenBorder" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#334155" />
+      <stop offset="60%" stop-color="#475569" />
+      <stop offset="100%" stop-color="#4895EF" />
+    </linearGradient>
+  </defs>
+
+  <!-- Layer 3 (Backmost Layer - Light Sapphire) -->
+  <path d="M 200 452 L 420 452 A 28 28 0 0 0 448 424 L 448 200" 
+        stroke="#60A5FA" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+
+  <!-- Layer 2 (Middle Layer - Sky Blue) -->
+  <path d="M 152 404 L 372 404 A 28 28 0 0 0 400 376 L 400 152" 
+        stroke="#38BDF8" stroke-width="22" stroke-linecap="round" stroke-linejoin="round" fill="none" />
+
+  <!-- Layer 1 (Front Main Screen with Solid White Frame) -->
+  <rect x="64" y="64" width="288" height="288" rx="28" ry="28"
+        fill="url(#screenGrad)" stroke="#FFFFFF" stroke-width="22" />
+
+  <!-- Subtle Inner Screen Accent Border -->
+  <rect x="80" y="80" width="256" height="256" rx="16" ry="16"
+        fill="none" stroke="url(#screenBorder)" stroke-width="4" />
+</svg>

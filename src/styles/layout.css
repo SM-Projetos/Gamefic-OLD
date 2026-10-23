@@ -135,13 +135,16 @@
 /* ---------- Área de conteúdo ---------- */
 .content {
   grid-area: content;
-  overflow-y: auto;
+  overflow: hidden;
   padding: var(--space-6);
 }
 
+/* cada página rola por si: muda/volta mantém a posição onde parou */
 .page {
   display: none;
   max-width: 100%;
+  overflow-y: auto;
+  height: 100%;
 }
 
 .page--active {

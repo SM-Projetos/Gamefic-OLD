@@ -3,6 +3,7 @@ import { getVersion } from "@tauri-apps/api/app";
 import { applyTheme, applyReducedMotion } from "./motion";
 import { initNav } from "./nav";
 import { loadPrefs, savePrefs } from "./prefs";
+import { wireAppClicks } from "./apps";
 import { getSystemInfo, renderKernels, renderVisaoGeral } from "./system";
 import { Monitor } from "./monitor";
 import {
@@ -38,12 +39,45 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   setStatus("info", "Detectando sistema...");
 
+  wireAppClicks();
+
+  let ultimoSnapshot: SystemSnapshot | null = null;
+
+  const recarregarSistema = () => {
+    if (!ultimoSnapshot) return;
+    getSystemInfo()
+      .then((snapshot: SystemSnapshot) => {
+        ultimoSnapshot = snapshot;
+        renderVisaoGeral(snapshot);
+        renderKernels(snapshot);
+      })
+      .catch(() => {});
+  };
+
+  const verificarIcones = () => {
+    invoke<number>("refresh_tool_icons")
+      .then((atualizados: number) => {
+        recordEvent(
+          "manutencao",
+          "ícones de ferramentas",
+          "concluido",
+          `Verificação de ícones concluída (${atualizados} atualizado(s))`,
+        );
+        if (atualizados > 0) recarregarSistema();
+      })
+      .catch(() => {});
+  };
+
   getSystemInfo()
     .then((snapshot: SystemSnapshot) => {
+      ultimoSnapshot = snapshot;
       renderVisaoGeral(snapshot);
       renderKernels(snapshot);
       setStatus("ok", "Sistema detectado");
       recordEvent("deteccao", "detecção do sistema", "concluido", "Hardware e sistema identificados com as fontes nativas");
+      // Verifica ícones mais recentes em segundo plano e re-renderiza se mudar algo
+      window.setTimeout(verificarIcones, 15_000);
+      window.setInterval(verificarIcones, 6 * 60 * 60 * 1000);
     })
     .catch((e) => {
       console.error("Falha na detecção do sistema:", e);

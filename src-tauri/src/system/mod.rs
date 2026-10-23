@@ -1,5 +1,8 @@
+pub mod appinfo;
 pub mod cpu;
+pub mod install;
 pub mod gpu;
+pub mod icons;
 pub mod memory;
 pub mod os;
 pub mod storage;
@@ -81,6 +84,19 @@ pub struct ToolInfo {
     pub name: String,
     pub description: String,
     pub available: bool,
+    pub version: Option<String>,
+    pub icon: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct AppEntry {
+    pub id: String,
+    pub name: String,
+    pub description: String,
+    pub available: bool,
+    pub version: Option<String>,
+    pub icon: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -107,6 +123,9 @@ pub struct SystemSnapshot {
     pub vulkan: Option<VulkanInfo>,
     pub temperatures: Vec<SensorReading>,
     pub tools: Vec<ToolInfo>,
+    pub launchers: Vec<AppEntry>,
+    pub emuladores: Vec<AppEntry>,
+    pub compatibilidade: Vec<AppEntry>,
 }
 
 pub fn snapshot() -> SystemSnapshot {
@@ -135,6 +154,9 @@ pub fn snapshot() -> SystemSnapshot {
         mesa_version,
         temperatures,
         tools: tools::detect(),
+        launchers: tools::launchers(),
+        emuladores: tools::emuladores(),
+        compatibilidade: tools::compatibility(),
     }
 }
 
