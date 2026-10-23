@@ -53,6 +53,8 @@ export interface ToolInfo {
   name: string;
   description: string;
   available: boolean;
+  version?: string | null;
+  icon?: string | null;
 }
 
 export interface StorageDevice {
@@ -62,6 +64,15 @@ export interface StorageDevice {
   sizeBytes?: number | null;
   usedBytes?: number | null;
   totalBytes?: number | null;
+}
+
+export interface AppEntry {
+  id?: string;
+  name: string;
+  description: string;
+  available: boolean;
+  version?: string | null;
+  icon?: string | null;
 }
 
 export interface SystemSnapshot {
@@ -78,6 +89,9 @@ export interface SystemSnapshot {
   vulkan?: VulkanInfo | null;
   temperatures: SensorReading[];
   tools: ToolInfo[];
+  launchers: AppEntry[];
+  emuladores: AppEntry[];
+  compatibilidade: AppEntry[];
 }
 
 export const INDISPONIVEL = "Não disponível";
@@ -101,8 +115,25 @@ export function temperatura(celsius: number): string {
 }
 
 export function renderVisaoGeral(snapshot: SystemSnapshot): void {
-  renderTools(snapshot.tools);
+  renderTiles(snapshot.launchers, "ov-launchers", "Nenhum launcher instalado");
+  renderTiles(snapshot.tools, "ov-tools", "Nenhuma ferramenta de jogos detectada");
+  renderTiles(snapshot.compatibilidade, "ov-compat", "Nenhuma ferramenta de compatibilidade detectada");
+  renderTiles(snapshot.emuladores, "ov-emul", "Nenhum emulador detectado");
+  inserirCardAddCompat();
   renderDesempenho(snapshot);
+}
+
+function inserirCardAddCompat(): void {
+  const grid = document.getElementById("ov-compat");
+  if (!grid) return;
+  const add = document.createElement("div");
+  add.className = "tool-tile tool-tile--add";
+  add.setAttribute("aria-label", "Adicionar compatibilidade");
+  add.innerHTML = `
+    <span aria-hidden="true">+</span>
+    <span class="tool-tile__name" style="min-height:0">Adicionar</span>
+  `;
+  grid.appendChild(add);
 }
 
 export function renderDesempenho(snapshot: SystemSnapshot): void {
@@ -297,22 +328,29 @@ export function classificarTemperatura(c: number): { classe: string; texto: stri
   return { classe: "ok", texto: "Normal" };
 }
 
-function renderTools(tools: ToolInfo[]): void {
-  const grid = document.getElementById("ov-tools");
+function renderTiles(entries: AppEntry[], gridId: string, emptyMsg: string): void {
+  const grid = document.getElementById(gridId);
   if (!grid) return;
   grid.innerHTML = "";
-  if (!tools || tools.length === 0) {
-    grid.innerHTML = `<p class="muted tools-grid__empty">Nenhuma ferramenta de jogos detectada</p>`;
+  if (!entries || entries.length === 0) {
+    grid.innerHTML = `<p class="muted tools-grid__empty">${esc(emptyMsg)}</p>`;
     return;
   }
-  tools.forEach((tool, i) => {
+  entries.forEach((entry, i) => {
     const tile = document.createElement("div");
-    tile.className = `tool-tile${tool.available ? "" : " tool-tile--off"}`;
+    tile.className = `tool-tile${entry.available ? "" : " tool-tile--off"}`;
+    tile.dataset.appId = entry.id ?? "";
+    const iconHtml = entry.icon
+      ? `<span class="tool-tile__icon" aria-hidden="true"><img class="tool-tile__img" src="${esc(entry.icon)}" alt=""></span>`
+      : `<span class="tool-tile__icon tool-tile__icon--purple" aria-hidden="true">${esc(inicial(entry.name, i))}</span>`;
+    const versionHtml = entry.version
+      ? ` <span class="tool-tile__version num">${esc(entry.version)}</span>`
+      : "";
     tile.innerHTML = `
-      <span class="tool-tile__icon tool-tile__icon--purple" aria-hidden="true">${esc(inicial(tool.name, i))}</span>
-      <span class="tool-tile__name">${esc(tool.name)}</span>
-      <span class="tool-tile__status ${tool.available ? "" : "tool-tile__status--off"}">
-        ${tool.available ? "✔ Instalado" : "Não encontrado"}
+      ${iconHtml}
+      <span class="tool-tile__name">${esc(entry.name)}${versionHtml}</span>
+      <span class="tool-tile__status ${entry.available ? "" : "tool-tile__status--off"}">
+        ${entry.available ? "✔ Instalado" : "Não encontrado"}
       </span>
     `;
     grid.appendChild(tile);

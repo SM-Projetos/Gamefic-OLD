@@ -23,7 +23,7 @@
         <nav class="nav" aria-label="Navegação principal">
           <button class="nav__item nav__item--active" data-tab="visao-geral" type="button">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="9" rx="1.5"/><rect x="14" y="3" width="7" height="5" rx="1.5"/><rect x="14" y="12" width="7" height="9" rx="1.5"/><rect x="3" y="16" width="7" height="5" rx="1.5"/></svg>
-            Visão geral
+            Apps
           </button>
           <button class="nav__item" data-tab="desempenho" type="button">
             <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l2.5-7 5 14 2.5-7h4"/></svg>
@@ -50,7 +50,7 @@
       </aside>
 
       <header class="topbar">
-        <span class="topbar__title" id="topbar-title">Visão geral</span>
+        <span class="topbar__title" id="topbar-title">Apps</span>
         <div class="topbar__spacer"></div>
         <div class="topbar__status">
           <span id="status-indicator"><span class="pill pill--info" title="Estado da detecção">Detecção não iniciada</span></span>
@@ -62,12 +62,11 @@
 
       <main class="content">
         <section class="page page--active" id="page-visao-geral">
-          <div class="hero card">
-            <div class="hero__text">
-              <h2 class="hero__title">Seu sistema para jogos</h2>
-              <p class="hero__desc">Centro de controle do jogador — ferramentas de jogos e acesso rápido ao resto do Gamefic.</p>
+          <h2 class="page__section-title" style="margin-top: var(--space-5);">Launchers instalados</h2>
+          <div class="card tools-card">
+            <div class="tools-grid" id="ov-launchers">
+              <p class="muted">Consultando...</p>
             </div>
-            <div class="hero__art" aria-hidden="true"></div>
           </div>
 
           <h2 class="page__section-title" style="margin-top: var(--space-5);">Ferramentas de jogos</h2>
@@ -79,6 +78,30 @@
               Gerenciar ferramentas
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m9 6 6 6-6 6"/></svg>
             </button>
+          </div>
+
+          <h2 class="page__section-title" style="margin-top: var(--space-5);">Compatibilidade</h2>
+          <div class="card tools-card">
+            <div class="tools-grid" id="ov-compat">
+              <p class="muted">Consultando...</p>
+            </div>
+          </div>
+
+          <h2 class="page__section-title" style="margin-top: var(--space-5);">Emuladores</h2>
+          <div class="card tools-card">
+            <div class="tools-grid" id="ov-emul">
+              <p class="muted">Consultando...</p>
+            </div>
+          </div>
+        </section>
+
+        <section class="page" id="page-app-detalhe">
+          <button class="link-arrow" id="btn-voltar-apps" type="button">
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>
+            Voltar para Apps
+          </button>
+          <div class="card app-detalhe-card" id="app-detalhe-card">
+            <p class="muted">Carregando...</p>
           </div>
         </section>
 
@@ -269,6 +292,45 @@
           <ul class="card" id="lista-eventos" style="display:flex; flex-direction:column; gap: var(--space-3);"></ul>
         </section>
       </main>
+        <div class="modal-scrim" id="modal-compat" hidden>
+          <div class="modal card" role="dialog" aria-modal="true" aria-label="Instalar compatibilidade">
+            <div class="modal__head">
+              <h3 class="modal__title">Adicionar compatibilidade</h3>
+              <button class="icon-btn" id="btn-fechar-compat" aria-label="Fechar">✕</button>
+            </div>
+            <div class="modal__body">
+              <div class="modal__col" id="modal-col-wine">
+                <h4>Wine</h4>
+                <label class="field"><span class="field__label">Fork</span>
+                  <select class="field__control" id="wine-fork"></select>
+                </label>
+                <label class="field"><span class="field__label">Versão</span>
+                  <select class="field__control" id="wine-versao">
+                    <option value="latest">latest</option>
+                  </select>
+                </label>
+                <p class="muted" id="wine-info">&nbsp;</p>
+                <button class="btn btn--primary" id="btn-instalar-wine" type="button">Instalar</button>
+              </div>
+              <div class="modal__col" id="modal-col-proton">
+                <h4>Proton</h4>
+                <label class="field"><span class="field__label">Fork</span>
+                  <select class="field__control" id="proton-fork"></select>
+                </label>
+                <label class="field"><span class="field__label">Versão</span>
+                  <select class="field__control" id="proton-versao">
+                    <option value="latest">latest</option>
+                  </select>
+                </label>
+                <p class="muted" id="proton-info">&nbsp;</p>
+                <button class="btn btn--primary" id="btn-instalar-proton" type="button">Instalar</button>
+              </div>
+            </div>
+            <p class="muted" id="compat-status" hidden>&nbsp;</p>
+          </div>
+        </div>
+
+
     </div>
 
     <div class="notifications" id="notifications" aria-live="polite"></div>
