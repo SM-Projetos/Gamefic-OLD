@@ -104,3 +104,29 @@
   --card-hover-ring: #2456d6;
   --card-hover-glow: 0 0 16px rgba(36, 86, 214, 0.25);
 }
+
+[data-theme="wine"] {
+  /* Paleta vinho */
+  --bg: #481821;
+  --bg-nav: #8E3545;
+  --bg-card: #29272B;
+  --bg-surface: #3a1520;
+  --border: #C77D87;
+  --text: #F4EDE8;
+  --text-dim: #C77D87;
+
+  --accent-purple: #8E3545;
+  --accent-purple-bright: #C77D87;
+  --accent-cyan: #C77D87;
+
+  --accent-purple-translucent: rgba(142, 53, 69, 0.16);
+  --accent-cyan-translucent: rgba(199, 125, 135, 0.14);
+  --accent-amber-translucent: rgba(244, 237, 232, 0.14);
+  --accent-red-translucent: rgba(142, 53, 69, 0.12);
+
+  --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.45);
+  --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.55);
+  --glow-accent: 0 0 14px rgba(142, 53, 69, 0.35);
+  --card-hover-ring: #8E3545;
+  --card-hover-glow: 0 0 16px rgba(142, 53, 69, 0.28);
+}
