@@ -40,6 +40,7 @@ window.addEventListener("DOMContentLoaded", async () => {
   const prefs = await loadPrefs();
   applyTheme(prefs.theme);
   applyReducedMotion(prefs.reducedMotion);
+  document.body.classList.remove("hidden-inicial");
 
   setStatus("info", "Detectando sistema...");
 
