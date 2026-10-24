@@ -207,17 +207,39 @@ export function wireAppClicks(): void {
     });
   });
   document.getElementById("btn-voltar-apps")?.addEventListener("click", irParaApps);
+
+// fechar modal de compatibilidade ao clicar fora da área do diálogo (backdrop do app)
+  document.addEventListener("click", (ev) => {
+    const modal = document.getElementById("modal-compat");
+    if (!modal || modal.hidden) return;
+    const target = ev.target as HTMLElement;
+    // não interfere em cliques em elementos que abrem o modal
+    if (target.closest(".tool-tile--add")) return;
+    // fecha se o clique não for dentro do diálogo
+    if (!target.closest(".modal")) {
+      ocultarModalCompat();
+    }
+  });
 }
 
 // ---------- modal de compatibilidade ----------
 
 let versoesCarregadas = false;
+let pollProgresso: number | null = null;
+let wineVersoes: string[] = [];
+
+interface ProgressoItem {
+  id: string;
+  nome: string;
+  desc: string;
+  pct?: number | null;
+  estado: string; // "andamento" | "concluido" | "erro"
+}
 
 function abrirModalCompat(): void {
   const modal = document.getElementById("modal-compat");
   if (!modal) return;
   modal.hidden = false;
-  const carregado = versoesCarregadas;
   if (!versoesCarregadas) {
     versoesCarregadas = true;
     document.getElementById("proton-fork")?.addEventListener("change", carregarVersoesProton);
@@ -225,28 +247,94 @@ function abrirModalCompat(): void {
     document.getElementById("btn-instalar-wine")?.addEventListener("click", instalarWine);
     document.getElementById("btn-instalar-proton")?.addEventListener("click", instalarProton);
     document.getElementById("btn-fechar-compat")?.addEventListener("click", fecharModalCompat);
-    document.getElementById("modal-scrim")?.addEventListener("click", fecharModalCompat);
+    document.getElementById("modal-scrim")?.addEventListener("click", ocultarModalCompat);
   }
-  if (!carregado) {
-    // preenche imediatamente a partir do cache em disco
-    invoke<ForkList & { versoes?: Record<string, string[]> }>("cache_compat_forks")
-      .then((dados) => {
-        forksCacheVersoes = dados.versoes ?? {};
-        if ((dados.wines?.length ?? 0) > 0 || (dados.protons?.length ?? 0) > 0) {
-          forksWines = dados.wines ?? [];
-          forksProtons = dados.protons ?? [];
-          renderForks();
-          carregarVersoesProton();
-        }
-      })
-      .catch(() => {});
-    // atualização em segundo plano
-    carregarForks();
-  }
+  // preenche imediatamente a partir do cache em disco
+  invoke<ForkList & { versoes?: Record<string, string[]> }>("cache_compat_forks")
+    .then((dados) => {
+      forksCacheVersoes = dados.versoes ?? {};
+      if ((dados.wines?.length ?? 0) > 0 || (dados.protons?.length ?? 0) > 0) {
+        forksWines = dados.wines ?? [];
+        forksProtons = dados.protons ?? [];
+        renderForks();
+        carregarVersoesProton();
+        carregarVersoesWine();
+      }
+    })
+    .catch(() => {});
+  // atualização em segundo plano
+  carregarForks();
+  // estado dos processos em andamento (independente do ciclo da janela)
+  iniciarPollProgresso();
 }
 
 function fecharModalCompat(): void {
+  pararPollProgresso();
   document.getElementById("modal-compat")?.setAttribute("hidden", "");
+  renderProgresso([]);
+  invoke("limpar_progresso_compat").catch(() => {});
+}
+
+function ocultarModalCompat(): void {
+  document.getElementById("modal-compat")?.setAttribute("hidden", "");
+}
+
+// ---------- ciclo de vida dos processos (independente da janela) ----------
+
+function atualizarProgresso(): void {
+  invoke<ProgressoItem[]>("progresso_compat")
+    .then(renderProgresso)
+    .catch(() => {});
+}
+
+function iniciarPollProgresso(): void {
+  if (pollProgresso !== null) return;
+  atualizarProgresso();
+  pollProgresso = window.setInterval(atualizarProgresso, 500);
+}
+
+function pararPollProgresso(): void {
+  if (pollProgresso !== null) {
+    window.clearInterval(pollProgresso);
+    pollProgresso = null;
+  }
+}
+
+function renderProgresso(lista: ProgressoItem[]): void {
+  const area = document.getElementById("modal-progresso");
+  if (!area) return;
+  if (lista.length === 0) {
+    area.hidden = true;
+    area.innerHTML = "";
+    return;
+  }
+  area.hidden = false;
+  area.innerHTML = lista
+    .map((p) => {
+      const pct =
+        p.estado === "concluido" ? 100 : p.estado === "erro" ? 0 : p.pct ?? null;
+      const rotPct =
+        p.estado === "concluido"
+          ? "Concluído"
+          : p.estado === "erro"
+            ? "Erro"
+            : pct !== null
+              ? `${pct}%`
+              : "—";
+      const indeterminado = p.estado === "andamento" && pct === null;
+      return `
+      <div class="compat-progresso-item" data-estado="${esc(p.estado)}">
+        <div class="compat-progresso-head">
+          <span class="compat-progresso-nome">${esc(p.nome)}</span>
+          <span class="compat-progresso-estado" data-estado="${esc(p.estado)}">${esc(rotPct)}</span>
+        </div>
+        <div class="progress${indeterminado ? " progress--indeterminado" : ""}">
+          <div class="progress__bar" style="width:${(pct ?? 35) + "%"}"></div>
+        </div>
+        <p class="muted compat-progresso-desc">${esc(p.desc)}</p>
+      </div>`;
+    })
+    .join("");
 }
 
 let forksWines: InfoCompat[] = [];
@@ -297,7 +385,31 @@ function atualizarVersoesWine(): void {
   if (!sel || !v) return;
   const f = forksWines.find((w) => w.chave === sel.value);
   const rot = f?.versao_repo ? `latest (${f.versao_repo})` : "latest";
-  v.innerHTML = `<option value="latest">${esc(rot)}</option>`;
+  const opcoes = wineVersoes
+    .map((ver) => {
+      const rotulo = `${ver}${ver.endsWith(".0") ? " (estável)" : " (desenvolvimento)"}`;
+      return `<option value="${esc(ver)}">${esc(rotulo)}</option>`;
+    })
+    .join("");
+  v.innerHTML = `<option value="latest">${esc(rot)}, versão oficial do WineHQ</option>${opcoes}`;
+}
+
+/// versões do Wine: cache em disco primeiro, depois a fonte oficial (GitLab do WineHQ)
+function carregarVersoesWine(): void {
+  const emCache = forksCacheVersoes["wine-oficial"];
+  if (emCache && emCache.length > 0) {
+    wineVersoes = emCache;
+    atualizarVersoesWine();
+  }
+  invoke<string[]>("listar_wine_versoes")
+    .then((l) => {
+      if (l && l.length > 0) {
+        wineVersoes = l;
+        forksCacheVersoes["wine-oficial"] = l;
+        atualizarVersoesWine();
+      }
+    })
+    .catch(() => {});
 }
 
 function atualizarInfoWine(): void {
@@ -368,7 +480,10 @@ function instalarWine(): void {
   if (!sel) return;
   statusCompat("Instalando Wine (pacote " + sel.value + ")... — autorize no pkexec");
   invoke<string>("instalar_wine", { pkg: sel.value })
-    .then((msg) => statusCompat(`OK: ${msg}`))
+    .then(() => {
+      statusCompat("Instalando em segundo plano — pode fechar a janela com segurança");
+      atualizarProgresso();
+    })
     .catch((e) => statusCompat(`Erro: ${String(e)}`));
 }
 
@@ -378,6 +493,9 @@ function instalarProton(): void {
   if (!fork || !versao) return;
   statusCompat(`Baixando ${fork.value} ${versao.value}... (poderá demorar)`);
   invoke<string>("instalar_proton_versao", { fork: fork.value, versao: versao.value })
-    .then((msg) => statusCompat(`OK: ${msg}`))
+    .then(() => {
+      statusCompat("Baixando em segundo plano — pode fechar a janela com segurança");
+      atualizarProgresso();
+    })
     .catch((e) => statusCompat(`Erro: ${String(e)}`));
 }
