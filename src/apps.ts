@@ -196,8 +196,8 @@ function atualizarEstadoEntrada(): void {
   const temAtualizacao = fonteInstalada ? (fonteInstalada.versao_repo && fonteInstalada.versao_repo !== fonteInstalada.versao) : false;
 
   if (btnAtualizar) {
-    btnAtualizar.style.display = algumInstalado ? "inline-flex" : "none";
-    btnAtualizar.disabled = !f || !f.instalado || !temAtualizacao;
+    btnAtualizar.style.display = (algumInstalado && temAtualizacao) ? "inline-flex" : "none";
+    btnAtualizar.disabled = false;
     btnAtualizar.textContent = temAtualizacao ? "Atualizar" : "Atualizado";
   }
 
