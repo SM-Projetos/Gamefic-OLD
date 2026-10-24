@@ -3,9 +3,7 @@ use std::path::Path;
 
 use super::StorageDevice;
 
-const VIRTUAL_PREFIXES: [&str; 9] = [
-    "loop", "ram", "zram", "fd", "dm-", "md", "sr", "mtd", "nbd",
-];
+const VIRTUAL_PREFIXES: [&str; 9] = ["loop", "ram", "zram", "fd", "dm-", "md", "sr", "mtd", "nbd"];
 
 pub fn detect() -> Vec<StorageDevice> {
     let mut devices: Vec<StorageDevice> = Vec::new();
@@ -83,7 +81,12 @@ fn base_disk(dev: &str) -> String {
     }
     // mmcblk0p3 -> mmcblk0
     if let Some(p_pos) = dev.find('p') {
-        if p_pos > 0 && dev[..p_pos].chars().last().is_some_and(|c| c.is_ascii_digit()) {
+        if p_pos > 0
+            && dev[..p_pos]
+                .chars()
+                .last()
+                .is_some_and(|c| c.is_ascii_digit())
+        {
             let tail = &dev[p_pos + 1..];
             if !tail.is_empty() && tail.chars().all(|c| c.is_ascii_digit()) {
                 return dev[..p_pos].to_string();

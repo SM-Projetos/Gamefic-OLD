@@ -64,7 +64,8 @@ fn load(app: &AppHandle) -> Vec<AppEvent> {
 
 fn persist(app: &AppHandle, events: &[AppEvent]) -> Result<(), String> {
     let path = events_path(app)?;
-    let json = serde_json::to_string_pretty(events).map_err(|e| format!("erro de serialização: {e}"))?;
+    let json =
+        serde_json::to_string_pretty(events).map_err(|e| format!("erro de serialização: {e}"))?;
     fs::write(path, json).map_err(|e| format!("falha ao gravar eventos: {e}"))
 }
 

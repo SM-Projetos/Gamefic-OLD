@@ -11,7 +11,9 @@ pub fn detect() -> Option<MemoryInfo> {
     let mut swap_free_kb: Option<u64> = None;
 
     for line in text.lines() {
-        let Some((key, value)) = line.split_once(':') else { continue };
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
         let key = key.trim();
         let kb = parse_kb(value);
 

@@ -97,7 +97,8 @@ fn cpu_avg_freq() -> Option<u32> {
             if !(name.starts_with("cpu") && name[3..].chars().all(|c| c.is_ascii_digit())) {
                 continue;
             }
-            if let Ok(raw) = std::fs::read_to_string(entry.path().join("cpufreq/scaling_cur_freq")) {
+            if let Ok(raw) = std::fs::read_to_string(entry.path().join("cpufreq/scaling_cur_freq"))
+            {
                 let khz: u32 = raw.trim().parse().unwrap_or(0);
                 if khz > 0 {
                     freqs.push(khz / 1000);
@@ -129,31 +130,33 @@ pub fn start_monitoring(
 
     std::thread::Builder::new()
         .name("gamefic-monitor".to_string())
-        .spawn(move || loop {
-            if !shared.running.load(Ordering::SeqCst) {
-                break;
-            }
-
-            let sample = collect_sample();
-
-            {
-                let mut history = shared
-                    .history
-                    .lock()
-                    .unwrap_or_else(|poisoned| poisoned.into_inner());
-                history.push_back(sample.clone());
-                while history.len() > HISTORY_LIMIT {
-                    history.pop_front();
+        .spawn(move || {
+            loop {
+                if !shared.running.load(Ordering::SeqCst) {
+                    break;
                 }
-            }
 
-            let _ = app_handle.emit("metrics", sample);
+                let sample = collect_sample();
 
-            let mut slept = 0u64;
-            while slept < interval && shared.running.load(Ordering::SeqCst) {
-                let step = 200.min(interval - slept);
-                std::thread::sleep(Duration::from_millis(step));
-                slept += step;
+                {
+                    let mut history = shared
+                        .history
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    history.push_back(sample.clone());
+                    while history.len() > HISTORY_LIMIT {
+                        history.pop_front();
+                    }
+                }
+
+                let _ = app_handle.emit("metrics", sample);
+
+                let mut slept = 0u64;
+                while slept < interval && shared.running.load(Ordering::SeqCst) {
+                    let step = 200.min(interval - slept);
+                    std::thread::sleep(Duration::from_millis(step));
+                    slept += step;
+                }
             }
         })
         .map_err(|e| format!("falha ao iniciar a coleta: {e}"))?;

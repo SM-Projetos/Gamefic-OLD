@@ -182,14 +182,17 @@ pub fn acao_app(id: &str, acao: &str, fonte: &str) -> Result<String, InstalarErr
                 return Err(InstalarError::Fonte);
             };
             let out = match acao {
-                "instalar" | "atualizar" => {
-                    Command::new("flatpak")
-                        .args([
-                            "install", "--system", "--noninteractive", "-y", "flathub", fid,
-                        ])
-                        .output()
-                        .map_err(|e| InstalarError::Execucao(e.to_string()))?
-                }
+                "instalar" | "atualizar" => Command::new("flatpak")
+                    .args([
+                        "install",
+                        "--system",
+                        "--noninteractive",
+                        "-y",
+                        "flathub",
+                        fid,
+                    ])
+                    .output()
+                    .map_err(|e| InstalarError::Execucao(e.to_string()))?,
                 "remover" => Command::new("flatpak")
                     .args(["uninstall", "--system", "-y", "--noninteractive", fid])
                     .output()
@@ -206,6 +209,77 @@ pub fn acao_app(id: &str, acao: &str, fonte: &str) -> Result<String, InstalarErr
         }
         _ => Err(InstalarError::Fonte),
     }
+}
+
+// ---------- progresso dos processos de instalação ----------
+// O ciclo de vida das instalações é independente da janela: o estado vive
+// aqui, em memória, e a UI só consulta/atualiza por meio destes helpers.
+
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProgressoItem {
+    pub id: String,
+    pub nome: String,
+    pub desc: String,
+    pub pct: Option<u32>,
+    /// "andamento" | "concluido" | "erro"
+    pub estado: String,
+}
+
+static PROGRESSO: std::sync::Mutex<Vec<ProgressoItem>> = std::sync::Mutex::new(Vec::new());
+
+pub type PassoProg<'a> = &'a mut (dyn FnMut(Option<u32>, &str) + Send + 'a);
+
+/// inicia um item de progresso; devolve false se já houver um em andamento
+pub fn progresso_iniciar(id: &str, nome: &str, desc: &str) -> bool {
+    let mut l = PROGRESSO.lock().expect("mutex do progresso");
+    if l.iter().any(|p| p.id == id && p.estado == "andamento") {
+        return false;
+    }
+    l.retain(|p| p.id != id);
+    l.push(ProgressoItem {
+        id: id.to_string(),
+        nome: nome.to_string(),
+        desc: desc.to_string(),
+        pct: None,
+        estado: "andamento".to_string(),
+    });
+    true
+}
+
+pub fn progresso_atualizar(id: &str, desc: Option<&str>, pct: Option<u32>, estado: Option<&str>) {
+    let mut l = PROGRESSO.lock().expect("mutex do progresso");
+    if let Some(p) = l.iter_mut().find(|p| p.id == id) {
+        if let Some(d) = desc {
+            p.desc = d.to_string();
+        }
+        if let Some(n) = pct {
+            p.pct = Some(n);
+        }
+        if let Some(e) = estado {
+            p.estado = e.to_string();
+        }
+        if estado == Some("erro") || estado == Some("concluido") {
+            p.pct = if estado == Some("concluido") {
+                Some(100)
+            } else {
+                None
+            };
+        }
+    }
+}
+
+/// remove itens concluídos/errados (chamado quando a janela é fechada)
+pub fn progresso_remover_concluidos() {
+    PROGRESSO
+        .lock()
+        .expect("mutex do progresso")
+        .retain(|p| p.estado == "andamento");
+}
+
+pub fn progresso_listar() -> Vec<ProgressoItem> {
+    let l = PROGRESSO.lock().expect("mutex do progresso");
+    l.clone()
 }
 
 // ---------- Wine ----------
@@ -229,9 +303,37 @@ pub fn forks_wine() -> Vec<InfoCompat> {
     lista
 }
 
-pub fn instalar_wine(pkg: &str) -> Result<String, InstalarError> {
+/// lista de versões oficiais do Wine, direto da API do projeto (GitLab do WineHQ);
+/// tags como "wine-11.20" viram "11.20"
+pub fn versoes_wine() -> Result<Vec<String>, InstalarError> {
+    let texto = http_texto(
+        "https://gitlab.winehq.org/api/v4/projects/wine%2Fwine/releases?per_page=15",
+        4_000_000,
+    )?;
+    let json: serde_json::Value =
+        serde_json::from_str(&texto).map_err(|e| InstalarError::Execucao(e.to_string()))?;
+    let mut v: Vec<String> = json
+        .as_array()
+        .unwrap_or(&Vec::new())
+        .iter()
+        .filter_map(|r| r["tag_name"].as_str().and_then(|s| s.strip_prefix("wine-")))
+        .filter(|s| !s.is_empty())
+        .map(|s| s.to_string())
+        .collect();
+    v.dedup();
+    if v.is_empty() {
+        Err(InstalarError::Execucao("sem releases do Wine".to_string()))
+    } else {
+        Ok(v)
+    }
+}
+
+pub fn instalar_wine(pkg: &str, mut prog: Option<PassoProg>) -> Result<String, InstalarError> {
     if !["wine", "wine-staging", "wine-cachyos"].contains(&pkg) {
         return Err(InstalarError::Fonte);
+    }
+    if let Some(cb) = &mut prog {
+        cb(None, "Consultando os repositórios...");
     }
     let out = Command::new("pkexec")
         .args(["pacman", "-S", "--noconfirm", pkg])
@@ -283,8 +385,8 @@ fn releases_tag(repositorio: &str) -> Result<Vec<String>, InstalarError> {
     let url = format!("https://api.github.com/repos/{repositorio}/releases?per_page=15");
     match http_texto(&url, 8_000_000) {
         Ok(texto) => {
-            let json: Vec<serde_json::Value> = serde_json::from_str(&texto)
-                .map_err(|e| InstalarError::Execucao(e.to_string()))?;
+            let json: Vec<serde_json::Value> =
+                serde_json::from_str(&texto).map_err(|e| InstalarError::Execucao(e.to_string()))?;
             let mut tags: Vec<String> = json
                 .iter()
                 .filter_map(|r| r["tag_name"].as_str().map(|s| s.to_string()))
@@ -299,11 +401,18 @@ fn releases_tag(repositorio: &str) -> Result<Vec<String>, InstalarError> {
 }
 
 fn releases_atom(repositorio: &str) -> Result<Vec<String>, InstalarError> {
-    let texto = http_texto(&format!("https://github.com/{repositorio}/releases.atom"), 2_000_000)?;
+    let texto = http_texto(
+        &format!("https://github.com/{repositorio}/releases.atom"),
+        2_000_000,
+    )?;
     let mut tags: Vec<String> = Vec::new();
     for bloco in texto.split("<entry>") {
-        let Some(t) = bloco.split("</title>").next() else { continue };
-        let Some(t) = t.split("<title>").nth(1) else { continue };
+        let Some(t) = bloco.split("</title>").next() else {
+            continue;
+        };
+        let Some(t) = t.split("<title>").nth(1) else {
+            continue;
+        };
         let mut tag = t.trim().to_string();
         if tag == "Release notes from proton-ge-custom" || tag.ends_with("from proton-cachyos") {
             continue;
@@ -505,8 +614,14 @@ fn arquivo_cache() -> Option<std::path::PathBuf> {
     let base = std::env::var("XDG_DATA_HOME")
         .ok()
         .filter(|v| !v.is_empty())
-        .or_else(|| std::env::var("HOME").ok().map(|h| format!("{h}/.local/share")))?;
-    let dir = std::path::PathBuf::from(base).join("com.sergio.gamefic").join("cache");
+        .or_else(|| {
+            std::env::var("HOME")
+                .ok()
+                .map(|h| format!("{h}/.local/share"))
+        })?;
+    let dir = std::path::PathBuf::from(base)
+        .join("com.sergio.gamefic")
+        .join("cache");
     fs::create_dir_all(&dir).ok()?;
     Some(dir.join("forks.json"))
 }
@@ -543,13 +658,11 @@ pub fn salvar_versoes_cache(fork: &str, versoes: &[String]) {
     }
 }
 
-pub fn versoes_proton(fork: &str) -> Result<Vec<String>, InstalarError> {    let f = fork_proton(fork)?;
+pub fn versoes_proton(fork: &str) -> Result<Vec<String>, InstalarError> {
+    let f = fork_proton(fork)?;
     match f.fonte {
         FonteProton::Steam => Ok(Vec::new()),
-        _ => Ok(releases_fork(f)?
-            .into_iter()
-            .map(|(t, _)| t)
-            .collect()),
+        _ => Ok(releases_fork(f)?.into_iter().map(|(t, _)| t).collect()),
     }
 }
 
@@ -559,7 +672,9 @@ fn asset_url_github(repositorio: &str, tag: &str) -> Result<String, InstalarErro
         2_000_000,
     )?;
     for bloco in page.split("href=\"") {
-        let Some(href) = bloco.split('"').next() else { continue };
+        let Some(href) = bloco.split('"').next() else {
+            continue;
+        };
         let minic = href.to_lowercase();
         if (minic.ends_with(".tar.gz") || minic.ends_with(".tar.xz")) && minic.contains("proton") {
             return Ok(if href.starts_with("http") {
@@ -575,8 +690,12 @@ fn asset_url_github(repositorio: &str, tag: &str) -> Result<String, InstalarErro
     ))
 }
 
-pub fn instalar_proton(fork: &str, versao: &str) -> Result<String, InstalarError> {
-    use std::io::Read;
+pub fn instalar_proton(
+    fork: &str,
+    versao: &str,
+    mut prog: Option<PassoProg>,
+) -> Result<String, InstalarError> {
+    use std::io::{Read, Write};
     let f = fork_proton(fork)?;
 
     if f.fonte == FonteProton::Steam {
@@ -587,6 +706,9 @@ pub fn instalar_proton(fork: &str, versao: &str) -> Result<String, InstalarError
 
     if let Some(p) = f.pacote {
         if versao == "pacman" {
+            if let Some(cb) = &mut prog {
+                cb(None, "Instalando pacote (autorize no pkexec)...");
+            }
             let out = Command::new("pkexec")
                 .args(["pacman", "-S", "--noconfirm", p])
                 .output()
@@ -598,6 +720,10 @@ pub fn instalar_proton(fork: &str, versao: &str) -> Result<String, InstalarError
                 String::from_utf8_lossy(&out.stderr).to_string(),
             ));
         }
+    }
+
+    if let Some(cb) = &mut prog {
+        cb(None, "Resolvendo versão e endereço de download...");
     }
 
     // descobre o nome interno do fork p/ resolver a versão
@@ -626,26 +752,80 @@ pub fn instalar_proton(fork: &str, versao: &str) -> Result<String, InstalarError
         "tar.gz"
     };
 
-    // download para /tmp
+    // download para /tmp, com relato de progresso
     let tmp = std::env::temp_dir().join(format!("gamefic-{}.{}", fork, extensao));
-    let mut reader = ureq::get(&url_download)
+    let resp = ureq::get(&url_download)
         .set("User-Agent", "gamefic")
         .timeout(std::time::Duration::from_secs(900))
         .call()
-        .map_err(|e| InstalarError::Execucao(e.to_string()))?
-        .into_reader();
-    let mut arquivo = fs::File::create(&tmp).map_err(|e| InstalarError::Execucao(e.to_string()))?;
-    std::io::copy(&mut reader.by_ref().take(PROTON_MAX_MB * 1024 * 1024), &mut arquivo)
         .map_err(|e| InstalarError::Execucao(e.to_string()))?;
+    let total = resp
+        .header("content-length")
+        .and_then(|v| v.parse::<u64>().ok());
+    let mut reader = resp.into_reader();
+    let mut arquivo = fs::File::create(&tmp).map_err(|e| InstalarError::Execucao(e.to_string()))?;
+    let limite = PROTON_MAX_MB * 1024 * 1024;
+    let mut buf = [0u8; 64 * 1024];
+    let mut feitos: u64 = 0;
+    let mut ultimo: u32 = u32::MAX;
+    loop {
+        let n = reader
+            .read(&mut buf)
+            .map_err(|e| InstalarError::Execucao(e.to_string()))?;
+        if n == 0 {
+            break;
+        }
+        feitos += n as u64;
+        if feitos > limite {
+            let _ = fs::remove_file(&tmp);
+            return Err(InstalarError::Falha(
+                "download maior que o permitido".to_string(),
+            ));
+        }
+        arquivo
+            .write_all(&buf[..n])
+            .map_err(|e| InstalarError::Execucao(e.to_string()))?;
+        if let Some(cb) = &mut prog {
+            if let Some(t) = total {
+                if t > 0 {
+                    let pct = ((feitos * 100) / t).min(100) as u32;
+                    if pct != ultimo {
+                        ultimo = pct;
+                        cb(
+                            Some(pct),
+                            &format!(
+                                "Baixando ({:.1}/{:.1} MB)...",
+                                feitos as f64 / 1e6,
+                                t as f64 / 1e6
+                            ),
+                        );
+                    }
+                }
+            } else {
+                cb(
+                    None,
+                    &format!("Baixando ({:.1} MB)...", feitos as f64 / 1e6),
+                );
+            }
+        }
+    }
 
     // extrai para compatibilitytools.d
+    if let Some(cb) = &mut prog {
+        cb(None, "Extraindo para o Steam...");
+    }
     let Some(destino) = diretorio_proton() else {
         return Err(InstalarError::Execucao(
             "compatibilitytools.d não encontrado".to_string(),
         ));
     };
     let out = Command::new("tar")
-        .args(["-xf", &tmp.to_string_lossy(), "-C", &destino.to_string_lossy()])
+        .args([
+            "-xf",
+            &tmp.to_string_lossy(),
+            "-C",
+            &destino.to_string_lossy(),
+        ])
         .output()
         .map_err(|e| InstalarError::Execucao(e.to_string()))?;
     if !out.status.success() {

@@ -22,7 +22,9 @@ fn parse_cpuinfo() -> CpuInfo {
     let mut processor_count: u32 = 0;
 
     for line in text.lines() {
-        let Some((key, value)) = line.split_once(':') else { continue };
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
         let (key, value) = (key.trim(), value.trim());
 
         match key {
@@ -53,11 +55,7 @@ fn parse_cpuinfo() -> CpuInfo {
 
 fn cpu_dir() -> Option<&'static Path> {
     let path = Path::new("/sys/devices/system/cpu");
-    if path.is_dir() {
-        Some(path)
-    } else {
-        None
-    }
+    if path.is_dir() { Some(path) } else { None }
 }
 
 fn current_freqs() -> Vec<u32> {
@@ -87,7 +85,9 @@ fn current_freqs() -> Vec<u32> {
 fn base_freq() -> Option<u32> {
     let text = fs::read_to_string("/proc/cpuinfo").ok()?;
     for line in text.lines() {
-        let Some((key, value)) = line.split_once(':') else { continue };
+        let Some((key, value)) = line.split_once(':') else {
+            continue;
+        };
         if key.trim() == "cpu MHz" || key.trim() == "clock" {
             let mhz: u32 = value.trim().parse().unwrap_or(0);
             if mhz > 0 {
@@ -123,11 +123,7 @@ fn max_scaling_freq() -> Option<u64> {
         }
     }
 
-    if max_khz > 0 {
-        Some(max_khz)
-    } else {
-        None
-    }
+    if max_khz > 0 { Some(max_khz) } else { None }
 }
 
 fn physical_core_count() -> Option<u32> {
@@ -146,10 +142,8 @@ fn physical_core_count() -> Option<u32> {
             let core = topo.join("core_id");
             let package = topo.join("physical_package_id");
 
-            if let (Ok(core), Ok(package)) = (
-                fs::read_to_string(core),
-                fs::read_to_string(package),
-            ) {
+            if let (Ok(core), Ok(package)) = (fs::read_to_string(core), fs::read_to_string(package))
+            {
                 pairs.insert((package.trim().to_string(), core.trim().to_string()));
             }
         }
