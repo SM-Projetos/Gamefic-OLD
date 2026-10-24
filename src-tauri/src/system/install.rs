@@ -12,6 +12,7 @@ pub struct FonteInfo {
     pub disponivel: bool,
     pub instalado: bool,
     pub versao: Option<String>,
+    pub versao_repo: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -96,7 +97,8 @@ pub fn detail(id: &str) -> Option<AppDetail> {
             fonte: format!("nativo:{pkg}"),
             disponivel: na_repo.is_some(),
             instalado: local.is_some(),
-            versao: local.or(na_repo),
+            versao: local.or(na_repo.clone()),
+            versao_repo: na_repo,
         });
     }
     if let Some(fid) = info.flatpak {
@@ -106,6 +108,7 @@ pub fn detail(id: &str) -> Option<AppDetail> {
             disponivel: está || flatpak_disponível(fid),
             instalado: está,
             versao: None,
+            versao_repo: None,
         });
     }
 
