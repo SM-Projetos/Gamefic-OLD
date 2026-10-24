@@ -29,6 +29,11 @@ body {
   color-scheme: light;
 }
 
+.hidden-inicial {
+  opacity: 0;
+  pointer-events: none;
+}
+
 h1,
 h2,
 h3 {
