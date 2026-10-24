@@ -350,7 +350,7 @@ function renderTiles(entries: AppEntry[], gridId: string, emptyMsg: string): voi
       ${iconHtml}
       <span class="tool-tile__name">${esc(entry.name)}${versionHtml}</span>
       <span class="tool-tile__status ${entry.available ? "" : "tool-tile__status--off"}">
-        ${entry.available ? "✔ Instalado" : "Não encontrado"}
+        ${entry.available ? "✔ Instalado" : "Não instalado"}
       </span>
     `;
     grid.appendChild(tile);
