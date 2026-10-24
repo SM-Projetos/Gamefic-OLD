@@ -1,7 +1,7 @@
 import { invoke } from "@tauri-apps/api/core";
 
 export type Prefs = {
-  theme: "dark" | "light" | "auto" | "wine";
+  theme: "dark" | "light" | "auto";
   reducedMotion: boolean;
   monitorIntervalMs: number;
 };
@@ -15,7 +15,7 @@ export async function loadPrefs(): Promise<Prefs> {
       const parsed = JSON.parse(raw) as Partial<Prefs>;
       const interval = parsed.monitorIntervalMs;
       return {
-        theme: parsed.theme === "light" || parsed.theme === "auto" || parsed.theme === "wine" ? parsed.theme : "dark",
+        theme: parsed.theme === "light" || parsed.theme === "auto" ? parsed.theme : "dark",
         reducedMotion: parsed.reducedMotion === true,
         monitorIntervalMs:
           typeof interval === "number" && [1000, 2000, 5000].includes(interval) ? interval : 2000,
