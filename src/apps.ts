@@ -111,10 +111,14 @@ function renderDetail(d: AppDetail): void {
 
       <ul class="kv-lista app-detalhe__fontes-lista">${fontesMeta}</ul>
 
-      <div class="app-detalhe__fontes">
-        <label class="field"><span class="field__label">Fonte</span>
-          <select class="field__control" id="app-fonte-selecao">${fonteOptions}</select>
-        </label>
+      <div class="app-detalhe__fontes fonte-dropdown-wrapper">
+        <button type="button" class="btn btn--primary fonte-dropdown-btn" id="fonte-dropdown-btn">
+          <span id="fonte-dropdown-label">${fonteDefault ? fonteLabel(fonteDefault) : "Nativo"}</span>
+          <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
+        </button>
+        <div class="fonte-dropdown-menu" id="fonte-dropdown-menu" hidden>
+          ${d.fontes.map((f) => `<button type="button" class="fonte-dropdown-menu__item" data-fonte="${esc(f.fonte)}">${esc(fonteLabel(f.fonte))}${f.disponivel ? "" : " — indisponível"}</button>`).join("")}
+        </div>
         <p class="field__status app-fonte-status" id="app-fonte-status">&nbsp;</p>
       </div>
 
@@ -126,11 +130,26 @@ function renderDetail(d: AppDetail): void {
       </div>
     </div>
   `;
-  const selectEl = card.querySelector<HTMLSelectElement>("#app-fonte-selecao");
-  if (selectEl) {
-    selectEl.value = fonteDefault;
-    selectEl.addEventListener("change", () => atualizarEstadoEntrada());
-  }
+  const dropdownBtn = card.querySelector<HTMLButtonElement>("#fonte-dropdown-btn");
+  const dropdownMenu = card.querySelector<HTMLDivElement>("#fonte-dropdown-menu");
+  const dropdownLabel = card.querySelector<HTMLSpanElement>("#fonte-dropdown-label");
+  fonteAtualGlobal = fonteDefault;
+  let fonteAtual = fonteDefault;
+
+  dropdownBtn?.addEventListener("click", () => {
+    dropdownMenu?.toggleAttribute("hidden");
+  });
+
+  card.querySelectorAll<HTMLButtonElement>(".fonte-dropdown-menu__item").forEach((item) => {
+    item.addEventListener("click", () => {
+      fonteAtual = item.dataset.fonte ?? fonteDefault;
+      fonteAtualGlobal = fonteAtual;
+      if (dropdownLabel) dropdownLabel.textContent = fonteLabel(fonteAtual);
+      dropdownMenu?.setAttribute("hidden", "");
+      atualizarEstadoEntrada();
+    });
+  });
+
   atualizarEstadoEntrada();
 
   const instalar = card.querySelector<HTMLButtonElement>("#btn-app-instalar");
@@ -141,10 +160,11 @@ function renderDetail(d: AppDetail): void {
   remover?.addEventListener("click", () => executarAcao("remover"));
 }
 
+let fonteAtualGlobal: string = "";
+
 function fonteEscolhida(): FonteInfo | null {
-  const sel = document.querySelector<HTMLSelectElement>("#app-fonte-selecao");
-  if (!sel || !detalheAtual) return null;
-  return detalheAtual.fontes.find((f) => f.fonte === sel.value) ?? null;
+  if (!fonteAtualGlobal || !detalheAtual) return null;
+  return detalheAtual.fontes.find((f) => f.fonte === fonteAtualGlobal) ?? null;
 }
 
 function atualizarEstadoEntrada(): void {

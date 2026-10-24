@@ -1,3 +1,52 @@
+.fonte-dropdown-wrapper {
+  position: relative;
+  display: inline-block;
+}
+
+.fonte-dropdown-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: var(--space-2);
+  padding: var(--space-2) var(--space-3);
+  border: 1px solid var(--accent-purple);
+  border-radius: var(--radius-control);
+  background: var(--accent-purple-translucent);
+  color: var(--accent-purple);
+  font-weight: var(--weight-semibold);
+  cursor: pointer;
+}
+
+.fonte-dropdown-menu {
+  position: absolute;
+  top: calc(100% + 4px);
+  left: 0;
+  min-width: 200px;
+  background: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-control);
+  box-shadow: var(--shadow-pop);
+  padding: var(--space-2);
+  z-index: 50;
+}
+
+.fonte-dropdown-menu__item {
+  width: 100%;
+  text-align: left;
+  padding: var(--space-2) var(--space-3);
+  border: none;
+  background: transparent;
+  color: var(--text);
+  border-radius: var(--radius-control);
+  cursor: pointer;
+  font-size: var(--text-body);
+  font-weight: var(--weight-medium);
+}
+
+.fonte-dropdown-menu__item:hover {
+  background: var(--bg-surface);
+  color: var(--accent-purple-bright);
+}
+
 /* Componentes reutilizáveis do Gamefic */
 
 /* ---------- Cartões ---------- */
