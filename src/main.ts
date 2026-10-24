@@ -37,6 +37,10 @@ window.addEventListener("DOMContentLoaded", async () => {
     }
   };
 
+  const prefs = await loadPrefs();
+  applyTheme(prefs.theme);
+  applyReducedMotion(prefs.reducedMotion);
+
   setStatus("info", "Detectando sistema...");
 
   wireAppClicks();
@@ -91,10 +95,6 @@ window.addEventListener("DOMContentLoaded", async () => {
 
   renderHistorico().catch((e) => console.error(e));
   wireHistorico();
-
-  const prefs = await loadPrefs();
-  applyTheme(prefs.theme);
-  applyReducedMotion(prefs.reducedMotion);
 
   initNav((tab) => {
     if (tab === "desempenho") monitor.render();
