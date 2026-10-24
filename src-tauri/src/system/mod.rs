@@ -1,12 +1,12 @@
 pub mod appinfo;
 pub mod cpu;
-pub mod install;
 pub mod gpu;
 pub mod icons;
+pub mod install;
 pub mod memory;
 pub mod os;
-pub mod storage;
 pub mod sensors;
+pub mod storage;
 pub mod tools;
 pub mod vulkan;
 
@@ -165,15 +165,21 @@ fn run(program: &str, args: &[&str]) -> std::io::Result<String> {
     if output.status.success() {
         Ok(String::from_utf8_lossy(&output.stdout).into_owned())
     } else {
-        Err(std::io::Error::new(std::io::ErrorKind::Other, "falha do programa externo"))
+        Err(std::io::Error::new(
+            std::io::ErrorKind::Other,
+            "falha do programa externo",
+        ))
     }
 }
 
 fn detect_gpus_with_driver_versions() -> Vec<GpuInfo> {
-    gpu::detect().into_iter().map(|mut g| {
-        g.driver_version = detect_driver_version(g.driver.clone());
-        g
-    }).collect()
+    gpu::detect()
+        .into_iter()
+        .map(|mut g| {
+            g.driver_version = detect_driver_version(g.driver.clone());
+            g
+        })
+        .collect()
 }
 
 fn detect_driver_version(driver: Option<String>) -> Option<String> {
@@ -257,15 +263,26 @@ fn parse_nvidia_driver_version() -> Option<String> {
 }
 
 fn detect_cpu_temp(temperatures: &[SensorReading]) -> Option<f32> {
-    let package = temperatures.iter().find(|t| t.label.eq_ignore_ascii_case("package id 0"));
+    let package = temperatures
+        .iter()
+        .find(|t| t.label.eq_ignore_ascii_case("package id 0"));
     let fanless = temperatures.iter().find(|t| {
         let l = t.label.to_lowercase();
         l.contains("package") || l == "tdie" || l == "tctl" || l == "cpu"
     });
     let first_core = temperatures.iter().find(|t| {
         let l = t.label.to_lowercase();
-        l.contains("core 0") || (t.chip.contains("k10temp") || t.chip.contains("coretemp")) && l.starts_with("temp1")
+        l.contains("core 0")
+            || (t.chip.contains("k10temp") || t.chip.contains("coretemp")) && l.starts_with("temp1")
     });
-    let fallback = if temperatures.is_empty() { None } else { Some(&temperatures[0]) };
-    package.or(fanless).or(first_core).or(fallback).map(|t| t.celsius)
+    let fallback = if temperatures.is_empty() {
+        None
+    } else {
+        Some(&temperatures[0])
+    };
+    package
+        .or(fanless)
+        .or(first_core)
+        .or(fallback)
+        .map(|t| t.celsius)
 }

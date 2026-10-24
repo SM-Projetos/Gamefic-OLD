@@ -8,50 +8,122 @@ const MAX_ICONE: usize = 600_000;
 fn emb(key: &str) -> Option<(&'static [u8], &'static str)> {
     match key {
         "steam" => Some((include_bytes!("../../assets/icons/steam.png"), "image/png")),
-        "lutris" => Some((include_bytes!("../../assets/icons/lutris.svg"), "image/svg+xml")),
+        "lutris" => Some((
+            include_bytes!("../../assets/icons/lutris.svg"),
+            "image/svg+xml",
+        )),
         "heroic" => Some((include_bytes!("../../assets/icons/heroic.png"), "image/png")),
-        "bottles" => Some((include_bytes!("../../assets/icons/bottles.svg"), "image/svg+xml")),
+        "bottles" => Some((
+            include_bytes!("../../assets/icons/bottles.svg"),
+            "image/svg+xml",
+        )),
         "itch" => Some((include_bytes!("../../assets/icons/itch.png"), "image/png")),
-        "minigalaxy" => Some((include_bytes!("../../assets/icons/minigalaxy.png"), "image/png")),
-        "legendary" => Some((include_bytes!("../../assets/icons/legendary.ico"), "image/x-icon")),
-        "mangohud" => Some((include_bytes!("../../assets/icons/mangohud.svg"), "image/svg+xml")),
+        "minigalaxy" => Some((
+            include_bytes!("../../assets/icons/minigalaxy.png"),
+            "image/png",
+        )),
+        "legendary" => Some((
+            include_bytes!("../../assets/icons/legendary.ico"),
+            "image/x-icon",
+        )),
+        "mangohud" => Some((
+            include_bytes!("../../assets/icons/mangohud.svg"),
+            "image/svg+xml",
+        )),
         "lact" => Some((include_bytes!("../../assets/icons/lact.png"), "image/png")),
-        "goverlay" => Some((include_bytes!("../../assets/icons/goverlay.svg"), "image/svg+xml")),
-        "wine" => Some((include_bytes!("../../assets/icons/wine.svg"), "image/svg+xml")),
-        "winetricks" => Some((include_bytes!("../../assets/icons/winetricks.svg"), "image/svg+xml")),
+        "goverlay" => Some((
+            include_bytes!("../../assets/icons/goverlay.svg"),
+            "image/svg+xml",
+        )),
+        "wine" => Some((
+            include_bytes!("../../assets/icons/wine.svg"),
+            "image/svg+xml",
+        )),
+        "winetricks" => Some((
+            include_bytes!("../../assets/icons/winetricks.svg"),
+            "image/svg+xml",
+        )),
         "proton" => Some((include_bytes!("../../assets/icons/proton.png"), "image/png")),
-        "retroarch" => Some((include_bytes!("../../assets/icons/retroarch.svg"), "image/svg+xml")),
-        "dolphin" => Some((include_bytes!("../../assets/icons/dolphin.svg"), "image/svg+xml")),
+        "retroarch" => Some((
+            include_bytes!("../../assets/icons/retroarch.svg"),
+            "image/svg+xml",
+        )),
+        "dolphin" => Some((
+            include_bytes!("../../assets/icons/dolphin.svg"),
+            "image/svg+xml",
+        )),
         "pcsx2" => Some((include_bytes!("../../assets/icons/pcsx2.png"), "image/png")),
-        "rpcs3" => Some((include_bytes!("../../assets/icons/rpcs3.ico"), "image/x-icon")),
+        "rpcs3" => Some((
+            include_bytes!("../../assets/icons/rpcs3.ico"),
+            "image/x-icon",
+        )),
         "ppsspp" => Some((include_bytes!("../../assets/icons/ppsspp.png"), "image/png")),
         "duck" => Some((include_bytes!("../../assets/icons/duck.png"), "image/png")),
         "mgba" => Some((include_bytes!("../../assets/icons/mgba.png"), "image/png")),
-        "mame" => Some((include_bytes!("../../assets/icons/mame.svg"), "image/svg+xml")),
+        "mame" => Some((
+            include_bytes!("../../assets/icons/mame.svg"),
+            "image/svg+xml",
+        )),
         _ => None,
     }
 }
 
 fn fonte_url(key: &str) -> Option<&'static str> {
     match key {
-        "lutris" => Some("https://raw.githubusercontent.com/lutris/lutris/master/share/icons/hicolor/scalable/apps/net.lutris.Lutris.svg"),
-        "heroic" => Some("https://raw.githubusercontent.com/Heroic-Games-Launcher/HeroicGamesLauncher/main/public/icon.png"),
-        "bottles" => Some("https://raw.githubusercontent.com/bottlesdevs/Bottles/main/data/icons/hicolor/scalable/apps/com.usebottles.bottles.svg"),
-        "itch" => Some("https://raw.githubusercontent.com/itchio/itch/master/release/images/itch-icons/icon256.png"),
-        "minigalaxy" => Some("https://raw.githubusercontent.com/sharkwouter/minigalaxy/master/data/icons/192x192/io.github.sharkwouter.Minigalaxy.png"),
-        "mangohud" => Some("https://raw.githubusercontent.com/flightlessmango/MangoHud/master/data/io.github.flightlessmango.mangohud.svg"),
-        "lact" => Some("https://raw.githubusercontent.com/ilya-zlobintsev/LACT/master/res/io.github.ilya_zlobintsev.LACT.png"),
-        "goverlay" => Some("https://raw.githubusercontent.com/benjamimgois/goverlay/main/data/icons/goverlay.svg"),
-        "wine" => Some("https://raw.githubusercontent.com/wine-mirror/wine/master/programs/winecfg/logo.svg"),
+        "lutris" => Some(
+            "https://raw.githubusercontent.com/lutris/lutris/master/share/icons/hicolor/scalable/apps/net.lutris.Lutris.svg",
+        ),
+        "heroic" => Some(
+            "https://raw.githubusercontent.com/Heroic-Games-Launcher/HeroicGamesLauncher/main/public/icon.png",
+        ),
+        "bottles" => Some(
+            "https://raw.githubusercontent.com/bottlesdevs/Bottles/main/data/icons/hicolor/scalable/apps/com.usebottles.bottles.svg",
+        ),
+        "itch" => Some(
+            "https://raw.githubusercontent.com/itchio/itch/master/release/images/itch-icons/icon256.png",
+        ),
+        "minigalaxy" => Some(
+            "https://raw.githubusercontent.com/sharkwouter/minigalaxy/master/data/icons/192x192/io.github.sharkwouter.Minigalaxy.png",
+        ),
+        "mangohud" => Some(
+            "https://raw.githubusercontent.com/flightlessmango/MangoHud/master/data/io.github.flightlessmango.mangohud.svg",
+        ),
+        "lact" => Some(
+            "https://raw.githubusercontent.com/ilya-zlobintsev/LACT/master/res/io.github.ilya_zlobintsev.LACT.png",
+        ),
+        "goverlay" => Some(
+            "https://raw.githubusercontent.com/benjamimgois/goverlay/main/data/icons/goverlay.svg",
+        ),
+        "wine" => Some(
+            "https://raw.githubusercontent.com/wine-mirror/wine/master/programs/winecfg/logo.svg",
+        ),
         _ => None,
     }
 }
 
 pub fn chaves_embutidas() -> Vec<&'static str> {
     const CHAVES: &[&str] = &[
-        "steam", "lutris", "heroic", "bottles", "itch", "minigalaxy",
-        "legendary", "mangohud", "lact", "goverlay", "wine", "winetricks", "proton",
-        "retroarch", "dolphin", "pcsx2", "rpcs3", "ppsspp", "duck", "mgba", "mame",
+        "steam",
+        "lutris",
+        "heroic",
+        "bottles",
+        "itch",
+        "minigalaxy",
+        "legendary",
+        "mangohud",
+        "lact",
+        "goverlay",
+        "wine",
+        "winetricks",
+        "proton",
+        "retroarch",
+        "dolphin",
+        "pcsx2",
+        "rpcs3",
+        "ppsspp",
+        "duck",
+        "mgba",
+        "mame",
     ];
     CHAVES.to_vec()
 }
@@ -60,7 +132,11 @@ fn diretorio_cache() -> Option<PathBuf> {
     let base = std::env::var("XDG_DATA_HOME")
         .ok()
         .filter(|v| !v.is_empty())
-        .or_else(|| std::env::var("HOME").ok().map(|h| format!("{h}/.local/share")))?;
+        .or_else(|| {
+            std::env::var("HOME")
+                .ok()
+                .map(|h| format!("{h}/.local/share"))
+        })?;
     let dir = PathBuf::from(base).join("com.sergio.gamefic").join("icons");
     fs::create_dir_all(&dir).ok()?;
     Some(dir)
@@ -114,11 +190,17 @@ pub fn refresh_cache() -> u32 {
         let Some(url) = fonte_url(key) else {
             continue;
         };
-        let bytes: Vec<u8> = match ureq::get(url).timeout(std::time::Duration::from_secs(20)).call() {
+        let bytes: Vec<u8> = match ureq::get(url)
+            .timeout(std::time::Duration::from_secs(20))
+            .call()
+        {
             Ok(resp) => {
                 use std::io::Read;
                 let mut v = Vec::new();
-                let resultado = resp.into_reader().take(MAX_ICONE as u64 + 1).read_to_end(&mut v);
+                let resultado = resp
+                    .into_reader()
+                    .take(MAX_ICONE as u64 + 1)
+                    .read_to_end(&mut v);
                 match resultado {
                     Ok(_) => v,
                     Err(_) => continue,

@@ -59,12 +59,18 @@ pub fn analyze(snapshot: &SystemSnapshot) -> Analysis {
             id: "governador-cpu".to_string(),
             name: "Governadores de CPU".to_string(),
             state: g.clone(),
-            detail: Some("Leitura de /sys/devices/system/cpu/*/cpufreq/scaling_governor".to_string()),
+            detail: Some(
+                "Leitura de /sys/devices/system/cpu/*/cpufreq/scaling_governor".to_string(),
+            ),
         });
 
         let resume = match g.as_str() {
-            "powersave" => "Com governador powersave a CPU tolera maior latência sob carga — considerar configuração de desempenho para jogos.",
-            "performance" => "Governador performance já ativo; sem recomendação necessária neste item.",
+            "powersave" => {
+                "Com governador powersave a CPU tolera maior latência sob carga — considerar configuração de desempenho para jogos."
+            }
+            "performance" => {
+                "Governador performance já ativo; sem recomendação necessária neste item."
+            }
             _ => "Governador alternativo ativo; avaliar conforme o uso.",
         };
 
@@ -104,7 +110,11 @@ pub fn analyze(snapshot: &SystemSnapshot) -> Analysis {
     resources.push(SystemResource {
         id: "gamemode".to_string(),
         name: "Gamemode (daemon)".to_string(),
-        state: if gamemode { "Presente".to_string() } else { "Não instalado".to_string() },
+        state: if gamemode {
+            "Presente".to_string()
+        } else {
+            "Não instalado".to_string()
+        },
         detail: Some("Detecção pelo binário gamemoded".to_string()),
     });
 
@@ -124,7 +134,11 @@ pub fn analyze(snapshot: &SystemSnapshot) -> Analysis {
     resources.push(SystemResource {
         id: "mangohud".to_string(),
         name: "MangoHud (overlay)".to_string(),
-        state: if mangohud { "Presente".to_string() } else { "Não instalado".to_string() },
+        state: if mangohud {
+            "Presente".to_string()
+        } else {
+            "Não instalado".to_string()
+        },
         detail: Some("Detecção pelo binário mangohud".to_string()),
     });
 
@@ -151,12 +165,14 @@ pub fn analyze(snapshot: &SystemSnapshot) -> Analysis {
             id: "vulkan".to_string(),
             name: "Suporte Vulkan".to_string(),
             state: estado,
-            detail: Some(vulkan
-                .gpus
-                .iter()
-                .filter_map(|g| g.driver_name.clone())
-                .collect::<Vec<_>>()
-                .join(" · ")),
+            detail: Some(
+                vulkan
+                    .gpus
+                    .iter()
+                    .filter_map(|g| g.driver_name.clone())
+                    .collect::<Vec<_>>()
+                    .join(" · "),
+            ),
         });
     } else {
         resources.push(SystemResource {
@@ -177,7 +193,9 @@ pub fn analyze(snapshot: &SystemSnapshot) -> Analysis {
             id: "swap".to_string(),
             name: "Swap configurado".to_string(),
             state: format!("{} MiB", swap / 1024),
-            detail: Some("Leitura de /proc/meminfo; verificação de zram em etapa futura".to_string()),
+            detail: Some(
+                "Leitura de /proc/meminfo; verificação de zram em etapa futura".to_string(),
+            ),
         });
     }
 
@@ -185,7 +203,8 @@ pub fn analyze(snapshot: &SystemSnapshot) -> Analysis {
         ProfileScope {
             id: "equilibrado".to_string(),
             name: "Equilibrado".to_string(),
-            description: "Sem alterações agressivas; equilíbrio entre desempenho e consumo".to_string(),
+            description: "Sem alterações agressivas; equilíbrio entre desempenho e consumo"
+                .to_string(),
             planned_adjustments: vec!["Governador da CPU em schedutil/ondemand".to_string()],
             implemented_adjustments: 0,
         },
@@ -229,9 +248,8 @@ fn read_governors() -> Option<Vec<String>> {
                 continue;
             }
 
-            if let Ok(gov) = std::fs::read_to_string(
-                entry.path().join("cpufreq/scaling_governor"),
-            ) {
+            if let Ok(gov) = std::fs::read_to_string(entry.path().join("cpufreq/scaling_governor"))
+            {
                 let trimmed = gov.trim();
                 if !trimmed.is_empty() && !governors.iter().any(|g| g == trimmed) {
                     governors.push(trimmed.to_string());

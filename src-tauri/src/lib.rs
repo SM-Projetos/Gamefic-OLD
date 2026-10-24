@@ -58,11 +58,7 @@ fn get_setting(app: tauri::AppHandle, key: String) -> Result<Option<String>, Pre
 }
 
 #[tauri::command]
-fn set_setting(
-    app: tauri::AppHandle,
-    key: String,
-    value: String,
-) -> Result<(), PrefsError> {
+fn set_setting(app: tauri::AppHandle, key: String, value: String) -> Result<(), PrefsError> {
     if key.is_empty() {
         return Err(PrefsError::Io(std::io::Error::other("chave vazia")));
     }
@@ -93,8 +89,7 @@ async fn get_app_detail(app_id: String) -> Option<system::install::AppDetail> {
 #[tauri::command]
 async fn app_action(app_id: String, acao: String, fonte: String) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || {
-        system::install::acao_app(&app_id, &acao, &fonte)
-            .map_err(|e| e.to_string())
+        system::install::acao_app(&app_id, &acao, &fonte).map_err(|e| e.to_string())
     })
     .await
     .map_err(|e| e.to_string())?
@@ -127,25 +122,130 @@ async fn listar_proton_versoes(fork: String) -> Result<Vec<String>, String> {
         system::install::salvar_versoes_cache(&fork, &versoes);
         Ok(versoes)
     })
-    .await.unwrap_or_else(|e| Err(e.to_string()))
+    .await
+    .unwrap_or_else(|e| Err(e.to_string()))
 }
 
+/// versões oficiais do Wine (GitLab do WineHQ), com cache em disco
+#[tauri::command]
+async fn listar_wine_versoes() -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let versoes = system::install::versoes_wine().map_err(|e| e.to_string())?;
+        system::install::salvar_versoes_cache("wine-oficial", &versoes);
+        Ok(versoes)
+    })
+    .await
+    .unwrap_or_else(|e| Err(e.to_string()))
+}
+
+/// estado atual dos processos de instalação (para reabrir a janela)
+#[tauri::command]
+fn progresso_compat() -> Vec<system::install::ProgressoItem> {
+    system::install::progresso_listar()
+}
+
+/// remove itens concluídos da área de progresso (ao fechar a janela)
+#[tauri::command]
+fn limpar_progresso_compat() {
+    system::install::progresso_remover_concluidos();
+}
+
+fn nome_wine(pkg: &str) -> String {
+    match pkg {
+        "wine" => "Wine (Stable)".to_string(),
+        "wine-staging" => "Wine-Staging".to_string(),
+        _ => "Wine CachyOS (otimizado)".to_string(),
+    }
+}
+
+/// dispara a instalação em segundo plano; a janela pode fechar sem interrompê-la
 #[tauri::command]
 async fn instalar_wine(pkg: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        system::install::instalar_wine(&pkg).map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    let id = format!("wine:{pkg}");
+    let nome = nome_wine(&pkg);
+    if !system::install::progresso_iniciar(&id, &nome, "Preparando instalação...") {
+        return Err("Este instalador já está em andamento".to_string());
+    }
+    let pkg_bg = pkg.clone();
+    let id_bg = id.clone();
+    tauri::async_runtime::spawn(async move {
+        let id_cb = id_bg.clone();
+        let r = tauri::async_runtime::spawn_blocking(move || {
+            system::install::instalar_wine(
+                &pkg_bg,
+                Some(&mut move |pct, desc| {
+                    system::install::progresso_atualizar(&id_cb, Some(desc), pct, None);
+                }),
+            )
+            .map_err(|e| e.to_string())
+        })
+        .await;
+        match r {
+            Ok(Ok(_)) => system::install::progresso_atualizar(
+                &id_bg,
+                Some("Concluído"),
+                None,
+                Some("concluido"),
+            ),
+            Ok(Err(e)) => {
+                system::install::progresso_atualizar(&id_bg, Some(&e), None, Some("erro"))
+            }
+            Err(_) => system::install::progresso_atualizar(
+                &id_bg,
+                Some("Processo finalizado inesperadamente"),
+                None,
+                Some("erro"),
+            ),
+        }
+    });
+    Ok("em andamento".to_string())
 }
 
+/// dispara a instalação do Proton em segundo plano (independente da janela)
 #[tauri::command]
 async fn instalar_proton_versao(fork: String, versao: String) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        system::install::instalar_proton(&fork, &versao).map_err(|e| e.to_string())
-    })
-    .await
-    .map_err(|e| e.to_string())?
+    let id = format!("proton:{fork}:{versao}");
+    let rotulo_ver = if versao.len() > 40 {
+        format!("{}…", &versao[..40])
+    } else {
+        versao.clone()
+    };
+    let nome = format!("Proton {rotulo_ver}");
+    if !system::install::progresso_iniciar(&id, &nome, "Preparando instalação...") {
+        return Err("Este instalador já está em andamento".to_string());
+    }
+    let fork_bg = fork.clone();
+    let versao_bg = versao.clone();
+    let id_bg = id.clone();
+    tauri::async_runtime::spawn(async move {
+        let id_cb = id_bg.clone();
+        let r = tauri::async_runtime::spawn_blocking(move || {
+            system::install::instalar_proton(
+                &fork_bg,
+                &versao_bg,
+                Some(&mut move |pct, desc| {
+                    system::install::progresso_atualizar(&id_cb, Some(desc), pct, None);
+                }),
+            )
+            .map_err(|e| e.to_string())
+        })
+        .await;
+        match r {
+            Ok(Ok(msg)) => {
+                system::install::progresso_atualizar(&id_bg, Some(&msg), None, Some("concluido"))
+            }
+            Ok(Err(e)) => {
+                system::install::progresso_atualizar(&id_bg, Some(&e), None, Some("erro"))
+            }
+            Err(_) => system::install::progresso_atualizar(
+                &id_bg,
+                Some("Processo finalizado inesperadamente"),
+                None,
+                Some("erro"),
+            ),
+        }
+    });
+    Ok("em andamento".to_string())
 }
 
 #[tauri::command]
@@ -195,6 +295,9 @@ pub fn run() {
             listar_compat_forks,
             cache_compat_forks,
             listar_proton_versoes,
+            listar_wine_versoes,
+            progresso_compat,
+            limpar_progresso_compat,
             instalar_wine,
             instalar_proton_versao,
             get_analysis

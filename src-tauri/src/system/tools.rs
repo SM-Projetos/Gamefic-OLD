@@ -55,7 +55,10 @@ pub fn detect() -> Vec<ToolInfo> {
         (
             "protontricks",
             "Protontricks",
-            either(Binario("protontricks"), PadraoFlatpak("com.github.Matoking.protontricks")),
+            either(
+                Binario("protontricks"),
+                PadraoFlatpak("com.github.Matoking.protontricks"),
+            ),
             "Winetricks dirigido por jogos Steam",
             &["/usr/share/icons/hicolor/256x256/apps/protontricks.png"],
         ),
@@ -80,19 +83,28 @@ pub fn launchers() -> Vec<AppEntry> {
             "Steam",
             either(Binario("steam"), PadraoFlatpak("com.valvesoftware.Steam")),
             "Loja e cliente de jogos da Valve",
-            &["/usr/share/pixmaps/steam.png", "/usr/share/icons/hicolor/256x256/apps/steam.png"],
+            &[
+                "/usr/share/pixmaps/steam.png",
+                "/usr/share/icons/hicolor/256x256/apps/steam.png",
+            ],
         ),
         (
             "lutris",
             "Lutris",
             either(Binario("lutris"), PadraoFlatpak("net.lutris.Lutris")),
             "Gerenciador de jogos Wine/Proton",
-            &["/usr/share/icons/hicolor/512x512/apps/net.lutris.Lutris.png", "/usr/share/pixmaps/lutris.png"],
+            &[
+                "/usr/share/icons/hicolor/512x512/apps/net.lutris.Lutris.png",
+                "/usr/share/pixmaps/lutris.png",
+            ],
         ),
         (
             "heroic",
             "Heroic Games Launcher",
-            either(Binario("heroic"), PadraoFlatpak("com.heroicgameslauncher.hgl")),
+            either(
+                Binario("heroic"),
+                PadraoFlatpak("com.heroicgameslauncher.hgl"),
+            ),
             "Launcher da Epic/GOG/Amazon",
             &["/usr/share/icons/hicolor/256x256/apps/com.heroicgameslauncher.hgl.png"],
         ),
@@ -117,7 +129,13 @@ pub fn launchers() -> Vec<AppEntry> {
             "Cliente GOG simples",
             &["/usr/share/icons/hicolor/256x256/apps/com.github.sharkwouter.minigalaxy.png"],
         ),
-        ("legendary", "Legendary", Binario("legendary"), "Cliente CLI da Epic Games", &[]),
+        (
+            "legendary",
+            "Legendary",
+            Binario("legendary"),
+            "Cliente CLI da Epic Games",
+            &[],
+        ),
     ];
 
     definition
@@ -195,14 +213,16 @@ pub fn emuladores() -> Vec<AppEntry> {
 
     definition
         .iter()
-        .map(|(key, name, availability, description, icon_path)| AppEntry {
-            id: (*key).to_string(),
-            name: (*name).to_string(),
-            description: (*description).to_string(),
-            available: availability.clone().check(),
-            version: None,
-            icon: icone_data_uri(key, &[*icon_path]),
-        })
+        .map(
+            |(key, name, availability, description, icon_path)| AppEntry {
+                id: (*key).to_string(),
+                name: (*name).to_string(),
+                description: (*description).to_string(),
+                available: availability.clone().check(),
+                version: None,
+                icon: icone_data_uri(key, &[*icon_path]),
+            },
+        )
         .collect()
 }
 
@@ -217,7 +237,10 @@ pub fn compatibility() -> Vec<AppEntry> {
         version: versao("wine", &["--version"]).map(|v| v.lines().next().unwrap_or("").to_string()),
         icon: icone_data_uri(
             "wine",
-            &["/usr/share/icons/hicolor/256x256/apps/wine.png", "/usr/share/pixmaps/wine.png"],
+            &[
+                "/usr/share/icons/hicolor/256x256/apps/wine.png",
+                "/usr/share/pixmaps/wine.png",
+            ],
         ),
     });
     for (label, version) in detectar_protons() {

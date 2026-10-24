@@ -62,7 +62,8 @@ pub fn detect() -> Vec<GpuInfo> {
     }
 
     let pci_ids = load_pci_ids();
-    if let Some((vendors, devices)) = &pci_ids {        for gpu in &mut gpus {
+    if let Some((vendors, devices)) = &pci_ids {
+        for gpu in &mut gpus {
             if let Some(vendor) = &gpu.vendor_id {
                 let vendor_name = vendors.get(vendor).cloned();
                 if let Some(vendor_name) = vendor_name {
@@ -124,7 +125,10 @@ fn driver_of(path: &Path) -> Option<String> {
         .map(|n| n.to_string_lossy().to_string())
 }
 
-type PciIds = (HashMap<String, String>, HashMap<String, HashMap<String, String>>);
+type PciIds = (
+    HashMap<String, String>,
+    HashMap<String, HashMap<String, String>>,
+);
 
 fn load_pci_ids() -> Option<PciIds> {
     let text = fs::read_to_string("/usr/share/hwdata/pci.ids")
@@ -141,7 +145,9 @@ fn load_pci_ids() -> Option<PciIds> {
         }
 
         if !line.starts_with(|c: char| c == '\t' || c == ' ') {
-            let Some((id, name)) = line.split_once(char::is_whitespace) else { continue };
+            let Some((id, name)) = line.split_once(char::is_whitespace) else {
+                continue;
+            };
             if id.len() != 4 || !id.chars().all(|c| c.is_ascii_hexdigit()) {
                 continue;
             }
@@ -157,7 +163,9 @@ fn load_pci_ids() -> Option<PciIds> {
         let (Some(vendor), Some((id, name))) = (
             current_vendor.as_deref(),
             line.trim_start().split_once(char::is_whitespace),
-        ) else { continue };
+        ) else {
+            continue;
+        };
 
         if id.len() != 4 || !id.chars().all(|c| c.is_ascii_hexdigit()) {
             continue;
@@ -196,7 +204,10 @@ fn apply_lspci_output(gpus: &mut [GpuInfo], output: &str) {
         }
 
         if let (Some(addr), driver) = (current_addr.clone(), extract_driver(line)) {
-            if let Some(gpu) = gpus.iter_mut().find(|g| g.pci_address.as_deref() == Some(addr.as_str())) {
+            if let Some(gpu) = gpus
+                .iter_mut()
+                .find(|g| g.pci_address.as_deref() == Some(addr.as_str()))
+            {
                 if gpu.driver.is_none() {
                     gpu.driver = driver;
                 }

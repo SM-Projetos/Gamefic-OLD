@@ -27,9 +27,13 @@ pub fn detect() -> Vec<SensorReading> {
                 break;
             }
 
-            let Ok(raw) = fs::read_to_string(&temp_input) else { continue };
+            let Ok(raw) = fs::read_to_string(&temp_input) else {
+                continue;
+            };
 
-            let Ok(millidegrees) = raw.trim().parse::<f32>() else { continue };
+            let Ok(millidegrees) = raw.trim().parse::<f32>() else {
+                continue;
+            };
             if millidegrees <= -50000.0 || millidegrees >= 150000.0 {
                 continue;
             }

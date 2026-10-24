@@ -3,8 +3,7 @@ use super::DistroInfo;
 pub fn detect_distro() -> Option<DistroInfo> {
     let text = std::fs::read_to_string("/etc/os-release").ok()?;
 
-    let mut fields: std::collections::HashMap<String, String> =
-        std::collections::HashMap::new();
+    let mut fields: std::collections::HashMap<String, String> = std::collections::HashMap::new();
 
     for line in text.lines() {
         if let Some((key, value)) = line.split_once('=') {
