@@ -106,17 +106,17 @@
 }
 
 [data-theme="wine"] {
-  /* Paleta vinho */
-  --bg: #481821;
-  --bg-nav: #8E3545;
-  --bg-card: #29272B;
+  /* Paleta vinho — alinhada com a imagem */
+  --bg: #2a0f18;
+  --bg-nav: #3a1520;
+  --bg-card: #4a2030;
   --bg-surface: #3a1520;
-  --border: #C77D87;
+  --border: #6b2a3a;
   --text: #F4EDE8;
   --text-dim: #C77D87;
 
-  --accent-purple: #8E3545;
-  --accent-purple-bright: #C77D87;
+  --accent-purple: #C77D87;
+  --accent-purple-bright: #d49aaa;
   --accent-cyan: #C77D87;
 
   --accent-purple-translucent: rgba(142, 53, 69, 0.16);
