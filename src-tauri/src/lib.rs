@@ -254,6 +254,19 @@ fn get_system_info() -> system::SystemSnapshot {
 }
 
 #[tauri::command]
+fn abrir_app(app_id: String) -> Result<String, String> {
+    let out = std::process::Command::new("xdg-open")
+        .arg(&app_id)
+        .output()
+        .map_err(|e| e.to_string())?;
+    if out.status.success() {
+        Ok("Aplicativo iniciado".to_string())
+    } else {
+        Err(String::from_utf8_lossy(&out.stderr).to_string())
+    }
+}
+
+#[tauri::command]
 fn get_analysis() -> recommendations::Analysis {
     let snapshot = system::snapshot();
     recommendations::analyze(&snapshot)
@@ -298,6 +311,7 @@ pub fn run() {
             listar_wine_versoes,
             progresso_compat,
             limpar_progresso_compat,
+            abrir_app,
             instalar_wine,
             instalar_proton_versao,
             get_analysis

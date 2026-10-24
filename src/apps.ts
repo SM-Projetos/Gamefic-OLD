@@ -95,8 +95,9 @@ function renderDetail(d: AppDetail): void {
       ${f.versao ? ` <span class="muted num">${esc(f.versao)}</span>` : ""}</li>`);
   }).join("");
 
-  const primeiraLivres = d.fontes.find((f) => f.disponivel);
-  const fonteDefault = primeiraLivres?.fonte ?? d.fontes[0]?.fonte ?? "";
+  const algumInstalado = d.fontes.some((f) => f.instalado);
+  const fonteInstalada = d.fontes.find((f) => f.instalado);
+  const fontePadrao = algumInstalado ? fonteInstalada?.fonte ?? d.fontes[0]?.fonte ?? "" : primeiraLivres?.fonte ?? d.fontes[0]?.fonte ?? "";
 
   card.innerHTML = `
     <div class="app-detalhe__icone" aria-hidden="true">${icone}</div>
@@ -113,7 +114,7 @@ function renderDetail(d: AppDetail): void {
 
       <div class="app-detalhe__fontes fonte-dropdown-wrapper">
         <button type="button" class="btn btn--primary fonte-dropdown-btn" id="fonte-dropdown-btn">
-          <span id="fonte-dropdown-label">${fonteDefault ? fonteLabel(fonteDefault) : "Nativo"}</span>
+          <span id="fonte-dropdown-label">${fontePadrao ? fonteLabel(fontePadrao) : "Nativo"}</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
         </button>
         <div class="fonte-dropdown-menu" id="fonte-dropdown-menu" hidden>
@@ -133,8 +134,8 @@ function renderDetail(d: AppDetail): void {
   const dropdownBtn = card.querySelector<HTMLButtonElement>("#fonte-dropdown-btn");
   const dropdownMenu = card.querySelector<HTMLDivElement>("#fonte-dropdown-menu");
   const dropdownLabel = card.querySelector<HTMLSpanElement>("#fonte-dropdown-label");
-  fonteAtualGlobal = fonteDefault;
-  let fonteAtual = fonteDefault;
+  fonteAtualGlobal = fontePadrao;
+  let fonteAtual = fontePadrao;
 
   dropdownBtn?.addEventListener("click", () => {
     dropdownMenu?.toggleAttribute("hidden");
@@ -142,7 +143,7 @@ function renderDetail(d: AppDetail): void {
 
   card.querySelectorAll<HTMLButtonElement>(".fonte-dropdown-menu__item").forEach((item) => {
     item.addEventListener("click", () => {
-      fonteAtual = item.dataset.fonte ?? fonteDefault;
+      fonteAtual = item.dataset.fonte ?? fontePadrao;
       fonteAtualGlobal = fonteAtual;
       if (dropdownLabel) dropdownLabel.textContent = fonteLabel(fonteAtual);
       dropdownMenu?.setAttribute("hidden", "");
@@ -173,6 +174,14 @@ function atualizarEstadoEntrada(): void {
   const btnInstalar = document.querySelector<HTMLButtonElement>("#btn-app-instalar");
   const btnAtualizar = document.querySelector<HTMLButtonElement>("#btn-app-atualizar");
   const btnRemover = document.querySelector<HTMLButtonElement>("#btn-app-remover");
+  const dropdownWrapper = document.querySelector<HTMLElement>(".fonte-dropdown-wrapper");
+  const btnAbrir = document.querySelector<HTMLButtonElement>("#btn-app-abrir");
+
+  const algumInstalado = detalheAtual ? detalheAtual.fontes.some((x) => x.instalado) : false;
+
+  if (dropdownWrapper) dropdownWrapper.style.display = algumInstalado ? "none" : "inline-block";
+  if (btnInstalar) btnInstalar.style.display = algumInstalado ? "none" : "inline-flex";
+
   if (status) {
     status.textContent = f
       ? f.instalado
@@ -182,9 +191,38 @@ function atualizarEstadoEntrada(): void {
           : "Indisponível"
       : "—";
   }
-  if (btnResumo(btnInstalar)) btnResumo(btnInstalar)!.disabled = !f || !f.disponivel;
-  if (btnResumo(btnAtualizar)) btnResumo(btnAtualizar)!.disabled = !f || !f.instalado;
-  if (btnResumo(btnRemover)) btnResumo(btnRemover)!.disabled = !f || !f.instalado;
+
+  const fonteInstalada = detalheAtual?.fontes.find((x) => x.instalado);
+  const temAtualizacao = fonteInstalada ? (fonteInstalada.versao_repo && fonteInstalada.versao_repo !== fonteInstalada.versao) : false;
+
+  if (btnAtualizar) {
+    btnAtualizar.style.display = algumInstalado ? "inline-flex" : "none";
+    btnAtualizar.disabled = !f || !f.instalado || !temAtualizacao;
+    btnAtualizar.textContent = temAtualizacao ? "Atualizar" : "Atualizado";
+  }
+
+  if (btnRemover) {
+    btnRemover.style.display = algumInstalado ? "inline-flex" : "none";
+    btnRemover.disabled = !f || !f.instalado;
+  }
+
+  if (!btnAbrir && algumInstalado && fonteInstalada) {
+    const acoes = document.querySelector<HTMLDivElement>(".app-detalhe__acoes");
+    if (acoes) {
+      const btn = document.createElement("button");
+      btn.className = "btn btn--primary";
+      btn.id = "btn-app-abrir";
+      btn.textContent = "Abrir";
+      btn.type = "button";
+      btn.addEventListener("click", () => {
+        const id = detalheAtual?.id;
+        if (!id) return;
+        invoke<string>("abrir_app", { appId: id })
+          .catch((e) => console.error("Falha ao abrir:", e));
+      });
+      acoes.insertBefore(btn, acoes.firstChild);
+    }
+  }
 }
 
 function btnResumo(b: HTMLButtonElement | null): HTMLButtonElement | null {
