@@ -126,7 +126,7 @@
 
   --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.45);
   --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.55);
-  --glow-accent: 0 0 14px rgba(142, 53, 69, 0.35);
-  --card-hover-ring: #8E3545;
-  --card-hover-glow: 0 0 16px rgba(142, 53, 69, 0.28);
+  --glow-accent: 0 0 14px rgba(199, 125, 135, 0.35);
+  --card-hover-ring: #C77D87;
+  --card-hover-glow: 0 0 16px rgba(199, 125, 135, 0.35);
 }
