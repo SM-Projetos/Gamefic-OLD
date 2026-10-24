@@ -681,6 +681,8 @@
   gap: var(--space-5);
   align-items: start;
   width: 100%;
+  max-height: calc(100vh - 140px);
+  overflow-y: auto;
 }
 
 .app-detalhe__icone {
