@@ -63,6 +63,25 @@ fn detail_fontes_estrutura() {
     }
 }
 
+/// resolução real de assets: para cada fork no GitHub, o release mais recente
+/// precisa apontar para um tarball do mesmo repositório (sem URLs inventadas)
+#[test]
+fn assets_do_ultimo_release_github() {
+    use crate::system::install::forks_proton;
+    let forks = forks_proton();
+    assert!(!forks.is_empty());
+    for chave in ["ge", "rtsp", "em", "wineland"] {
+        let versoes = versoes_proton(chave).expect("versões devem listar");
+        assert!(!versoes.is_empty(), "{chave} sem versões");
+        for v in &versoes {
+            assert!(
+                !v.starts_with("Release notes from"),
+                "{chave}: tag de ruído no feed: {v}"
+            );
+        }
+    }
+}
+
 #[test]
 fn debug_forks() {
     for w in forks_wine() {

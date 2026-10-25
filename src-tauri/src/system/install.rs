@@ -246,11 +246,14 @@ pub fn abrir_launcher(id: &str) -> Result<String, String> {
 
 // ---------- ações (install/remove/update) ----------
 
+#[derive(Debug, Clone, Serialize)]
 pub enum InstalarError {
     Fonte,
     Falha(String),
     NaoDisponivel,
     Execucao(String),
+    /// conflito real entre pacotes (p.ex. variantes de Wine que se contradizem)
+    Conflito(String),
 }
 
 impl std::fmt::Display for InstalarError {
@@ -260,6 +263,7 @@ impl std::fmt::Display for InstalarError {
             InstalarError::Falha(m) => write!(f, "{m}"),
             InstalarError::NaoDisponivel => write!(f, "fonte não está disponível"),
             InstalarError::Execucao(m) => write!(f, "falha na execução: {m}"),
+            InstalarError::Conflito(m) => write!(f, "conflito de pacotes: {m}"),
         }
     }
 }
@@ -472,20 +476,47 @@ pub fn instalar_wine(pkg: &str, mut prog: Option<PassoProg>) -> Result<String, I
     if !["wine", "wine-staging", "wine-cachyos"].contains(&pkg) {
         return Err(InstalarError::Fonte);
     }
+
+    // variante incompatível com a distribuição a partir do gerenciador real
+    match super::pkgmgr::atual() {
+        super::pkgmgr::PkgMgr::Nenhum => {
+            return Err(InstalarError::Execucao(
+                "a fonte nativa não é compatível com esta distribuição".to_string(),
+            ));
+        }
+        _ => {
+            if super::pkgmgr::na_repo(pkg).is_none() {
+                return Err(InstalarError::NaoDisponivel);
+            }
+        }
+    }
+
+    // variantes de Wine entram em conflito entre si (todos fornecem a
+    // mesma camada): diagnosticar antes da transação do gerenciador
+    let outras: &[(&str, &str)] = &[
+        ("wine", "Wine Stable"),
+        ("wine-staging", "Wine-Staging"),
+        ("wine-cachyos", "Wine CachyOS (otimizado)"),
+    ];
+    let conflitos: Vec<&str> = outras
+        .iter()
+        .filter(|(p, _)| *p != pkg)
+        .filter_map(|(p, nome)| super::pkgmgr::instalado(p).map(|_| *nome))
+        .collect();
+    if !conflitos.is_empty() {
+        return Err(InstalarError::Conflito(format!(
+            "instale '{}' desinstalando antes {}: todas as variantes de Wine fornecem a mesma camada de compatibilidade e o gerenciador de pacotes não resolve a substituição com --noconfirm",
+            pkg,
+            conflitos.join(" e ")
+        )));
+    }
+
     if let Some(cb) = &mut prog {
         cb(None, "Consultando os repositórios...");
     }
-    let out = Command::new("pkexec")
-        .args(["pacman", "-S", "--noconfirm", pkg])
-        .output()
-        .map_err(|e| InstalarError::Execucao(e.to_string()))?;
-    if out.status.success() {
-        Ok("Wine instalado".to_string())
-    } else {
-        Err(InstalarError::Falha(
-            String::from_utf8_lossy(&out.stderr).to_string(),
-        ))
-    }
+    super::pkgmgr::instalar(pkg)
+        .map(|_| "Wine instalado".to_string())
+        .map_err(InstalarError::Falha)
 }
 
 // ---------- Proton ----------
@@ -554,7 +585,11 @@ fn releases_atom(repositorio: &str) -> Result<Vec<String>, InstalarError> {
             continue;
         };
         let mut tag = t.trim().to_string();
-        if tag == "Release notes from proton-ge-custom" || tag.ends_with("from proton-cachyos") {
+        // ruído do feed: entrada sem release próprio ("Release notes from …")
+        if tag.starts_with("Release notes from") {
+            continue;
+        }
+        if tag.ends_with("from proton-cachyos") {
             continue;
         }
         // título do feed: "GE-ProtonXX-YY Released", "Version X" ou "cachyos-X-native"
@@ -689,12 +724,23 @@ fn releases_forgejo(url: &str) -> Result<Vec<(String, Option<String>)>, Instalar
         let asset = r["assets"]
             .as_array()
             .and_then(|a| {
-                a.iter()
+                let tarballs: Vec<&str> = a
+                    .iter()
                     .filter_map(|x| x["browser_download_url"].as_str())
+                    .filter(|u| {
+                        let l = u.to_lowercase();
+                        l.ends_with(".tar.xz") || l.ends_with(".tar.gz") || l.ends_with(".tar.zst")
+                    })
+                    .collect();
+                // prioriza um tarball com o runtime x86_64 explícito no nome
+                tarballs
+                    .iter()
                     .find(|u| {
                         let l = u.to_lowercase();
-                        (l.ends_with(".tar.xz") || l.ends_with(".tar.gz")) && l.contains("x86")
+                        l.contains("x86_64") || l.contains("x64") || l.contains("amd64")
                     })
+                    .or_else(|| tarballs.first())
+                    .copied()
             })
             .map(|s| s.to_string());
         saida.push((tag, asset));
@@ -811,23 +857,33 @@ fn asset_url_github(repositorio: &str, tag: &str) -> Result<String, InstalarErro
         &format!("https://github.com/{repositorio}/releases/expanded_assets/{tag}"),
         2_000_000,
     )?;
+    // usa apenas assets que o release realmente publica; sem inventar nomes
+    let mut tarballs: Vec<String> = Vec::new();
     for bloco in page.split("href=\"") {
         let Some(href) = bloco.split('"').next() else {
             continue;
         };
         let minic = href.to_lowercase();
-        if (minic.ends_with(".tar.gz") || minic.ends_with(".tar.xz")) && minic.contains("proton") {
-            return Ok(if href.starts_with("http") {
+        if minic.ends_with(".tar.gz") || minic.ends_with(".tar.xz") || minic.ends_with(".tar.zst") {
+            let url = if href.starts_with("http") {
                 href.to_string()
             } else {
                 format!("https://github.com{href}")
-            });
+            };
+            tarballs.push(url);
         }
     }
-    // fallback: nome convencional do GE-Proton
-    Ok(format!(
-        "https://github.com/{repositorio}/releases/download/{tag}/{tag}.tar.gz"
-    ))
+    if tarballs.is_empty() {
+        return Err(InstalarError::Execucao(format!(
+            "o release {tag} de {repositorio} não publica arquivos de distribuição (tarball); versão não instalável por este método"
+        )));
+    }
+    let escolhido = tarballs
+        .iter()
+        .find(|u| u.to_lowercase().contains("proton"))
+        .cloned()
+        .unwrap_or_else(|| tarballs[0].clone());
+    Ok(escolhido)
 }
 
 pub fn instalar_proton(
@@ -888,6 +944,8 @@ pub fn instalar_proton(
     };
     let extensao = if url_download.to_lowercase().ends_with(".tar.xz") {
         "tar.xz"
+    } else if url_download.to_lowercase().ends_with(".tar.zst") {
+        "tar.zst"
     } else {
         "tar.gz"
     };
@@ -898,7 +956,22 @@ pub fn instalar_proton(
         .set("User-Agent", "gamefic")
         .timeout(std::time::Duration::from_secs(900))
         .call()
-        .map_err(|e| InstalarError::Execucao(e.to_string()))?;
+        .map_err(|e| {
+            let _ = fs::remove_file(&tmp);
+            if matches!(&e, ureq::Error::Status(404, _)) {
+                InstalarError::Execucao(format!(
+                    "arquivo de distribuição não encontrado no release {tag}: a URL do projeto mudou"
+                ))
+            } else if let ureq::Error::Status(c, _) = &e {
+                if *c >= 400 {
+                    InstalarError::Execucao(format!("servidor respondeu {c} em {url_download}"))
+                } else {
+                    InstalarError::Execucao(e.to_string())
+                }
+            } else {
+                InstalarError::Execucao(e.to_string())
+            }
+        })?;
     let total = resp
         .header("content-length")
         .and_then(|v| v.parse::<u64>().ok());
@@ -950,6 +1023,22 @@ pub fn instalar_proton(
         }
     }
 
+    // valida o formato real do arquivo antes de extrair: evita tratar
+    // uma página HTML de erro como se fosse um tarball do Proton
+    let mut cabeca = [0u8; 6];
+    fs::File::open(&tmp)
+        .and_then(|mut a| a.read_exact(&mut cabeca))
+        .map_err(|e| InstalarError::Execucao(e.to_string()))?;
+    let gzip = cabeca[0] == 0x1f && cabeca[1] == 0x8b;
+    let xz = cabeca[0] == 0xfd && cabeca[1] == 0x37 && cabeca[2] == 0x7a && cabeca[3] == 0x58 && cabeca[4] == 0x5a;
+    let zstd = cabeca[0] == 0x28 && cabeca[1] == 0xb5 && cabeca[2] == 0x2f && cabeca[3] == 0xfd;
+    if !(gzip || xz || zstd) {
+        let _ = fs::remove_file(&tmp);
+        return Err(InstalarError::Falha(
+            "o arquivo baixado não é um tarball válido (gzip/xz/zstd): o release pode não conter o asset esperado".to_string(),
+        ));
+    }
+
     // extrai para compatibilitytools.d
     if let Some(cb) = &mut prog {
         cb(None, "Extraindo para o Steam...");
@@ -974,6 +1063,23 @@ pub fn instalar_proton(
         ));
     }
     let _ = fs::remove_file(&tmp);
+
+    // verificação final: o diretório extraído precisa conter o runtime
+    let detectado = diretorio_proton()
+        .and_then(|d| fs::read_dir(d).ok())
+        .map(|rd| {
+            rd.flatten()
+                .any(|entry| {
+                    let e = entry.file_name().to_string_lossy().to_lowercase();
+                    e.contains(f.detect) || e.contains("proton")
+                })
+        })
+        .unwrap_or(false);
+    if !detectado {
+        return Err(InstalarError::Falha(
+            "a extração não produziu o diretório do Proton esperado: consulte os logs".to_string(),
+        ));
+    }
 
     Ok(format!(
         "Instalado em {}; reinicie o Steam para aparecer em Proton experimental",
