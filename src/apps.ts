@@ -62,8 +62,13 @@ const TITLES: Record<string, string> = {
 };
 
 export function irParaApps(): void {
+  // aciona a transição de volta (zoom reverso) e limpa o sinal logo após a animação
+  document.body.dataset.navVolta = "apps";
   isMostarPagina("visao-geral");
   setTopbarTitle("Apps");
+  window.setTimeout(() => {
+    delete document.body.dataset.navVolta;
+  }, 300);
 }
 
 export function abrirApp(appId: string): void {

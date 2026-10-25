@@ -77,6 +77,8 @@
   --t-fast: 130ms ease;
   --t-med: 200ms ease;
   --t-slow: 250ms ease;
+  --ease-soft: cubic-bezier(0.22, 1, 0.36, 1);
+  --t-page: 220ms cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 [data-theme="light"] {
