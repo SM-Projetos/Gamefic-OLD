@@ -136,7 +136,6 @@
 .content {
   grid-area: content;
   overflow-y: auto;
-  overflow-x: visible;
   padding: var(--space-8);
 }
 
@@ -144,9 +143,7 @@
 .page {
   display: none;
   max-width: 100%;
-  overflow-y: auto;
   min-height: 100%;
-  height: auto;
 }
 
 .page--active {

@@ -6,6 +6,7 @@ export interface FonteInfo {
   disponivel: boolean;
   instalado: boolean;
   versao?: string | null;
+  versaoRepo?: string | null;
 }
 
 export interface AppDetail {
@@ -89,10 +90,6 @@ function renderDetail(d: AppDetail): void {
     ? `<img src="${esc(d.icone)}" alt="">`
     : `<span style="font-size:40px">${esc(d.nome.charAt(0))}</span>`;
 
-  const fonteOptions = d.fontes
-    .map((f) => `<option value="${esc(f.fonte)}">${esc(fonteLabel(f.fonte))}${f.disponivel ? "" : " — indisponível"}</option>`)
-    .join("");
-
   const fontesMeta = d.fontes.map((f) => {
     const estado = f.instalado ? "Instalado" : f.disponivel ? "Disponível" : "Indisponível";
     return (`
@@ -102,7 +99,7 @@ function renderDetail(d: AppDetail): void {
 
   const algumInstalado = d.fontes.some((f) => f.instalado);
   const fonteInstalada = d.fontes.find((f) => f.instalado);
-  const fontePadrao = algumInstalado ? fonteInstalada?.fonte ?? d.fontes[0]?.fonte ?? "" : primeiraLivres?.fonte ?? d.fontes[0]?.fonte ?? "";
+  const fontePadrao = algumInstalado ? fonteInstalada?.fonte ?? d.fontes[0]?.fonte ?? "" : d.fontes.find((f) => f.disponivel)?.fonte ?? d.fontes[0]?.fonte ?? "";
 
   card.innerHTML = `
     <div class="app-detalhe__icone" aria-hidden="true">${icone}</div>
@@ -198,7 +195,7 @@ function atualizarEstadoEntrada(): void {
   }
 
   const fonteInstalada = detalheAtual?.fontes.find((x) => x.instalado);
-  const temAtualizacao = fonteInstalada ? (fonteInstalada.versao_repo && fonteInstalada.versao_repo !== fonteInstalada.versao) : false;
+  const temAtualizacao = fonteInstalada ? (fonteInstalada.versaoRepo && fonteInstalada.versaoRepo !== fonteInstalada.versao) : false;
 
   if (btnAtualizar) {
     btnAtualizar.style.display = (algumInstalado && temAtualizacao) ? "inline-flex" : "none";
@@ -228,10 +225,6 @@ function atualizarEstadoEntrada(): void {
       acoes.insertBefore(btn, acoes.firstChild);
     }
   }
-}
-
-function btnResumo(b: HTMLButtonElement | null): HTMLButtonElement | null {
-  return b;
 }
 
 function executarAcao(acao: "instalar" | "atualizar" | "remover"): void {

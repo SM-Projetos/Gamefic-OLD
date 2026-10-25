@@ -10,7 +10,6 @@
 
 .card:hover {
   transform: translateY(-2px);
-  margin: var(--space-1);
   box-shadow: 0 0 0 1px var(--card-hover-ring, var(--accent-purple)), var(--card-hover-glow, 0 0 24px rgba(139, 92, 246, 0.35));
 }
 /* Visão geral — layout em destaque inspirado no centro de controle */
@@ -681,9 +680,6 @@
   gap: var(--space-5);
   align-items: start;
   width: 100%;
-  max-height: calc(100vh - 140px);
-  overflow-y: auto;
-  padding: var(--space-4);
   margin: var(--space-4);
 }
 

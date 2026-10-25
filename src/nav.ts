@@ -10,15 +10,24 @@ const TAB_IDS = Object.keys(TAB_TITLES);
 
 const scrollPagina: Record<string, number> = {};
 
-/** troca a página visível guardando/restaurando a rolagem de cada uma */
+/** troca a página visível guardando/restaurando a rolagem de cada uma.
+ * A rolagem vive no .content (contêiner único); guardar/definir lá preserva a posição por página */
 export function mostrarPagina(qual: string): void {
-  document.querySelectorAll<HTMLDivElement>(".page").forEach((p) => {
+  const content = document.querySelector<HTMLDivElement>(".content");
+  const pages = Array.from(document.querySelectorAll<HTMLDivElement>(".page"));
+  // 1ª passada: guarda a rolagem atual na página que está saindo
+  pages.forEach((p) => {
+    if (p.classList.contains("page--active") && p.id !== `page-${qual}`) {
+      scrollPagina[p.id] = content?.scrollTop ?? 0;
+    }
+  });
+  // 2ª passada: troca as páginas e restaura a rolagem da que entra
+  pages.forEach((p) => {
     const dentro = p.classList.contains("page--active");
-    if (dentro) scrollPagina[p.id] = p.scrollTop;
     const vaiFicar = p.id === `page-${qual}`;
     if (vaiFicar && !dentro) {
       p.classList.add("page--active");
-      p.scrollTop = scrollPagina[p.id] ?? 0;
+      if (content) content.scrollTop = scrollPagina[p.id] ?? 0;
     } else if (!vaiFicar && dentro) {
       p.classList.remove("page--active");
     }
@@ -44,7 +53,5 @@ export function initNav(onChange?: (tab: string) => void): void {
   });
 
   // arranque: tudo no topo
-  document.querySelectorAll<HTMLDivElement>(".page").forEach((p) => {
-    p.scrollTop = 0;
-  });
+  document.querySelector<HTMLDivElement>(".content")?.scrollTo({ top: 0 });
 }
