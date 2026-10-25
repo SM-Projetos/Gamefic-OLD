@@ -70,8 +70,8 @@
   --shadow-card: 0 2px 10px rgba(0, 0, 0, 0.35);
   --shadow-pop: 0 8px 28px rgba(0, 0, 0, 0.45);
   --glow-accent: 0 0 14px rgba(139, 92, 246, 0.35);
-  --card-hover-ring: #38bdf8;
-  --card-hover-glow: 0 0 16px rgba(56, 189, 248, 0.32);
+  --card-hover-ring: #8b5cf6;
+  --card-hover-glow: 0 0 16px rgba(139, 92, 246, 0.28);
 
   /* Transições */
   --t-fast: 130ms ease;
