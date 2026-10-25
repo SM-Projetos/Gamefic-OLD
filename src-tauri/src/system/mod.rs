@@ -81,6 +81,7 @@ pub struct StorageDevice {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolInfo {
+    pub id: String,
     pub name: String,
     pub description: String,
     pub available: bool,

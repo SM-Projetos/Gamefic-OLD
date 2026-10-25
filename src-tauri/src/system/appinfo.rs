@@ -71,16 +71,6 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         flatpak: Some("com.github.sharkwouter.minigalaxy"),
     },
     AppInfo {
-        id: "legendary",
-        nome: "Legendary",
-        fornecedor: "DerRod e comunidade",
-        licenca: "GPL-3.0",
-        desc_curta: "Cliente CLI da Epic Games",
-        desc_longa: "Implementação livre e sem interface gráfica do serviço da Epic Games: autentica, baixa e instala jogos, gerencia atualizações e dicas de cloud saves. Base de automações e integrado ao Heroic.",
-        nativos: &["legendary"],
-        flatpak: None,
-    },
-    AppInfo {
         id: "gamemode",
         nome: "GameMode",
         fornecedor: "Feral Interactive",

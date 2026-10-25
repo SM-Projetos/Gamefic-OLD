@@ -67,6 +67,7 @@ pub fn detect() -> Vec<ToolInfo> {
     definition
         .iter()
         .map(|(key, name, availability, description, icons)| ToolInfo {
+            id: (*key).to_string(),
             name: (*name).to_string(),
             description: (*description).to_string(),
             available: availability.clone().check(),
@@ -128,13 +129,6 @@ pub fn launchers() -> Vec<AppEntry> {
             Binario("minigalaxy"),
             "Cliente GOG simples",
             &["/usr/share/icons/hicolor/256x256/apps/com.github.sharkwouter.minigalaxy.png"],
-        ),
-        (
-            "legendary",
-            "Legendary",
-            Binario("legendary"),
-            "Cliente CLI da Epic Games",
-            &[],
         ),
     ];
 

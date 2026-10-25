@@ -50,6 +50,7 @@ export interface SensorReading {
 }
 
 export interface ToolInfo {
+  id: string;
   name: string;
   description: string;
   available: boolean;
