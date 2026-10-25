@@ -124,6 +124,34 @@ pub fn detail(id: &str) -> Option<AppDetail> {
     })
 }
 
+// ---------- abrir launcher instalado ----------
+
+/// Executa o launcher já instalado — na fonte em que ele foi detectado.
+/// Flatpak: `flatpak run <id>`; nativo: o binário do pacote.
+pub fn abrir_launcher(id: &str) -> Result<String, String> {
+    let info = achado(id).ok_or_else(|| "aplicativo desconhecido".to_string())?;
+    let instalados = flatpaks_instalados();
+
+    if let Some(fid) = info.flatpak {
+        if instalados.iter().any(|l| l == fid) {
+            Command::new("flatpak")
+                .args(["run", fid])
+                .spawn()
+                .map_err(|e| format!("falha ao iniciar: {e}"))?;
+            return Ok("Aplicativo iniciado".to_string());
+        }
+    }
+    for pkg in info.nativos {
+        if pacote_instalado(pkg).is_some() {
+            Command::new(pkg)
+                .spawn()
+                .map_err(|e| format!("falha ao iniciar: {e}"))?;
+            return Ok("Aplicativo iniciado".to_string());
+        }
+    }
+    Err(format!("{} não está instalado", info.nome))
+}
+
 // ---------- ações (install/remove/update) ----------
 
 pub enum InstalarError {

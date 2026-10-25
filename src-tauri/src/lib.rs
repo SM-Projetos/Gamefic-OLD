@@ -255,15 +255,7 @@ fn get_system_info() -> system::SystemSnapshot {
 
 #[tauri::command]
 fn abrir_app(app_id: String) -> Result<String, String> {
-    let out = std::process::Command::new("xdg-open")
-        .arg(&app_id)
-        .output()
-        .map_err(|e| e.to_string())?;
-    if out.status.success() {
-        Ok("Aplicativo iniciado".to_string())
-    } else {
-        Err(String::from_utf8_lossy(&out.stderr).to_string())
-    }
+    system::install::abrir_launcher(&app_id)
 }
 
 #[tauri::command]

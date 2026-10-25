@@ -114,6 +114,7 @@ function renderDetail(d: AppDetail): void {
 
       <ul class="kv-lista app-detalhe__fontes-lista">${fontesMeta}</ul>
 
+      ${d.fontes.length > 1 ? `
       <div class="app-detalhe__fontes fonte-dropdown-wrapper">
         <button type="button" class="btn btn--primary fonte-dropdown-btn" id="fonte-dropdown-btn">
           <span id="fonte-dropdown-label">${fontePadrao ? fonteLabel(fontePadrao) : "Nativo"}</span>
@@ -124,6 +125,7 @@ function renderDetail(d: AppDetail): void {
         </div>
         <p class="field__status app-fonte-status" id="app-fonte-status">&nbsp;</p>
       </div>
+      ` : ""}
 
       <div class="app-detalhe__acoes">
         <button class="btn btn--primary" id="btn-app-instalar" type="button">Instalar</button>
