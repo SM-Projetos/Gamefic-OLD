@@ -13,6 +13,8 @@ pub struct FonteInfo {
     pub instalado: bool,
     pub versao: Option<String>,
     pub versao_repo: Option<String>,
+    /// motivo da indisponibilidade, quando aplicável
+    pub motivo: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -55,62 +57,144 @@ fn rodar(prog: &str, args: &[&str]) -> Option<String> {
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
 }
 
-fn pacote_repo(pkg: &str) -> Option<String> {
-    let saida = rodar("pacman", &["-Si", pkg])?;
+/// extrai a linha "Version: x" de `flatpak remote-info`
+pub(crate) fn versao_remote_info(saida: &str) -> Option<String> {
     saida.lines().find_map(|l| {
         let l = l.trim();
-        for pref in ["Version", "Versão"] {
-            if let Some(r) = l.strip_prefix(pref) {
-                if let Some(v) = r.trim_start().strip_prefix(':') {
-                    return Some(v.trim().to_string());
-                }
-            }
+        if l.starts_with("Version:") {
+            let v = l["Version:".len()..].trim();
+            if v.is_empty() { None } else { Some(v.to_string()) }
+        } else {
+            None
         }
-        None
     })
 }
 
-fn pacote_instalado(pkg: &str) -> Option<String> {
-    let saida = rodar("pacman", &["-Q", pkg])?;
-    saida.split_whitespace().nth(1).map(|v| v.to_string())
+/// versão disponível no flathub para um escopo; falha se flatpak ausente,
+/// flathub não configurado ou app indisponível (a chamada distingue o motivo)
+fn flatpak_versao_flathub(id: &str, escopo: &str) -> Option<String> {
+    rodar("flatpak", &["remote-info", escopo, "flathub", id])
+        .and_then(|s| versao_remote_info(&s))
 }
 
+/// extrai (app-id, versão) ao gerar listas com `--columns=application,version`
+pub(crate) fn listar_com_version(saida: &str) -> Vec<(String, String)> {
+    saida
+        .lines()
+        .filter_map(|l| {
+            let mut p = l.split('\t');
+            let id = p.next()?.trim().to_string();
+            let versao = p.next().unwrap_or("").trim().to_string();
+            Some((id, versao))
+        })
+        .collect()
+}
+
+fn flatpaks_escopo(escopo: &str) -> Vec<(String, String)> {
+    rodar(
+        "flatpak",
+        &["list", "--app", escopo, "--columns=application,version"],
+    )
+    .map(|s| listar_com_version(&s))
+    .unwrap_or_default()
+}
+
+// referências do sistema atual (consultas, sem instalar nada)
 fn flatpaks_instalados() -> Vec<String> {
-    rodar("flatpak", &["list", "--app", "--columns=application"])
-        .map(|s| s.lines().map(|l| l.trim().to_string()).collect())
-        .unwrap_or_default()
-}
-
-fn flatpak_disponível(id: &str) -> bool {
-    rodar("flatpak", &["remote-info", "--system", "flathub", id]).is_some()
-        || rodar("flatpak", &["remote-info", "--user", "flathub", id]).is_some()
+    flatpaks_escopo("--system")
+        .into_iter()
+        .chain(flatpaks_escopo("--user"))
+        .map(|(id, _)| id)
+        .collect()
 }
 
 pub fn detail(id: &str) -> Option<AppDetail> {
     let info = achado(id)?;
-    let instalados = flatpaks_instalados();
+    let tem_flatpak_cmd = rodar("flatpak", &["--version"]).is_some();
+    let sistema = flatpaks_escopo("--system");
+    let usuario = flatpaks_escopo("--user");
 
     let mut fontes = Vec::new();
     for pkg in info.nativos {
-        let na_repo = pacote_repo(pkg);
-        let local = pacote_instalado(pkg);
+        let na_repo = super::pkgmgr::na_repo(pkg);
+        let local = super::pkgmgr::instalado(pkg);
+        let motivo = if local.is_none() && na_repo.is_none() {
+            match super::pkgmgr::atual() {
+                super::pkgmgr::PkgMgr::Nenhum =>
+                    Some("esta distribuição não tem fonte nativa compatível".to_string()),
+                _ => Some("pacote não está nos repositórios habilitados".to_string()),
+            }
+        } else {
+            None
+        };
         fontes.push(FonteInfo {
             fonte: format!("nativo:{pkg}"),
-            disponivel: na_repo.is_some(),
+            disponivel: local.is_some() || na_repo.is_some(),
             instalado: local.is_some(),
-            versao: local.or(na_repo.clone()),
+            versao: local,
             versao_repo: na_repo,
+            motivo,
         });
     }
     if let Some(fid) = info.flatpak {
-        let está = instalados.iter().any(|l| l == fid);
-        fontes.push(FonteInfo {
-            fonte: "flatpak".to_string(),
-            disponivel: está || flatpak_disponível(fid),
-            instalado: está,
-            versao: None,
-            versao_repo: None,
-        });
+        if !tem_flatpak_cmd {
+            fontes.push(FonteInfo {
+                fonte: "flatpak".to_string(),
+                disponivel: false,
+                instalado: false,
+                versao: None,
+                versao_repo: None,
+                motivo: Some("flatpak não está instalado no sistema".to_string()),
+            });
+        } else {
+            let no_sistema = sistema.iter().find(|(i, _)| i == fid);
+            let no_usuario = usuario.iter().find(|(i, _)| i == fid);
+
+            if let Some((_, versao)) = no_sistema {
+                fontes.push(FonteInfo {
+                    fonte: "flatpak".to_string(),
+                    disponivel: true,
+                    instalado: true,
+                    versao: Some(versao.clone()),
+                    versao_repo: flatpak_versao_flathub(fid, "--system")
+                        .or_else(|| flatpak_versao_flathub(fid, "--user")),
+                    motivo: None,
+                });
+            } else if let Some(repo) = flatpak_versao_flathub(fid, "--system")
+                .or_else(|| flatpak_versao_flathub(fid, "--user"))
+            {
+                fontes.push(FonteInfo {
+                    fonte: "flatpak".to_string(),
+                    disponivel: true,
+                    instalado: false,
+                    versao: None,
+                    versao_repo: Some(repo),
+                    motivo: None,
+                });
+            } else {
+                fontes.push(FonteInfo {
+                    fonte: "flatpak".to_string(),
+                    disponivel: false,
+                    instalado: false,
+                    versao: None,
+                    versao_repo: None,
+                    motivo: Some("não está disponível no Flathub configurado do sistema".to_string()),
+                });
+            }
+
+            if let Some((_, versao)) = no_usuario {
+                if no_sistema.is_none() {
+                    fontes.push(FonteInfo {
+                        fonte: "flatpak-user".to_string(),
+                        disponivel: true,
+                        instalado: true,
+                        versao: Some(versao.clone()),
+                        versao_repo: flatpak_versao_flathub(fid, "--user"),
+                        motivo: None,
+                    });
+                }
+            }
+        }
     }
 
     Some(AppDetail {
@@ -150,7 +234,7 @@ pub fn abrir_launcher(id: &str) -> Result<String, String> {
         }
     }
     for pkg in info.nativos {
-        if pacote_instalado(pkg).is_some() {
+        if super::pkgmgr::instalado(pkg).is_some() {
             Command::new(pkg)
                 .spawn()
                 .map_err(|e| format!("falha ao iniciar: {e}"))?;
@@ -183,48 +267,65 @@ impl std::fmt::Display for InstalarError {
 pub fn acao_app(id: &str, acao: &str, fonte: &str) -> Result<String, InstalarError> {
     let info = achado(id).ok_or(InstalarError::Fonte)?;
 
+    let pkgmgr_op = |op: super::pkgmgr::PkgOp, pkg: &str| -> Result<String, InstalarError> {
+        // revalida a condição antes de executar: vigiar compatibilidade,
+        // disponibilidade e estado real (ainda instalado / presente na repo)
+        let resultado = match op {
+            super::pkgmgr::PkgOp::Instalar => super::pkgmgr::instalar(pkg),
+            super::pkgmgr::PkgOp::Remover => super::pkgmgr::remover(pkg),
+        };
+        resultado
+            .map(|_| match op {
+                super::pkgmgr::PkgOp::Instalar => "Instalação concluída".to_string(),
+                super::pkgmgr::PkgOp::Remover => "Remoção concluída".to_string(),
+            })
+            .map_err(InstalarError::Falha)
+    };
+
     match fonte {
         f if f.starts_with("nativo:") => {
-            let pkg = f.split(':').nth(1).ok_or(InstalarError::Fonte)?;
-            match acao {
-                "instalar" | "atualizar" => {
-                    let out = Command::new("pkexec")
-                        .args(["pacman", "-S", "--noconfirm", pkg])
-                        .output()
-                        .map_err(|e| InstalarError::Execucao(e.to_string()))?;
-                    if out.status.success() {
-                        Ok("Instalação concluída".to_string())
-                    } else {
-                        Err(InstalarError::Falha(
-                            String::from_utf8_lossy(&out.stderr).to_string(),
-                        ))
-                    }
-                }
-                "remover" => {
-                    let out = Command::new("pkexec")
-                        .args(["pacman", "-Rns", "--noconfirm", pkg])
-                        .output()
-                        .map_err(|e| InstalarError::Execucao(e.to_string()))?;
-                    if out.status.success() {
-                        Ok("Remoção concluída".to_string())
-                    } else {
-                        Err(InstalarError::Falha(
-                            String::from_utf8_lossy(&out.stderr).to_string(),
-                        ))
-                    }
-                }
-                _ => Err(InstalarError::Fonte),
+            // valida que o pacote é do catálogo, nunca do frontend
+            let pkg = f.strip_prefix("nativo:").ok_or(InstalarError::Fonte)?;
+            if !info.nativos.contains(&pkg) {
+                return Err(InstalarError::Fonte);
             }
+            let op = match acao {
+                "instalar" => super::pkgmgr::PkgOp::Instalar,
+                "atualizar" => super::pkgmgr::PkgOp::Instalar,
+                "remover" => {
+                    if super::pkgmgr::instalado(pkg).is_none() {
+                        return Err(InstalarError::Falha(
+                            "o pacote nativo não está mais instalado".into(),
+                        ));
+                    }
+                    super::pkgmgr::PkgOp::Remover
+                }
+                _ => return Err(InstalarError::Fonte),
+            };
+            pkgmgr_op(op, pkg)
         }
-        "flatpak" => {
+        fonte_escopo @ ("flatpak" | "flatpak-user") => {
             let Some(fid) = info.flatpak else {
                 return Err(InstalarError::Fonte);
             };
+            // revalida: evitar remover/atualizar uma instalação de outro escopo
+            let escopo = if fonte_escopo == "flatpak-user" { "--user" } else { "--system" };
+            let instalado_no_escopo = rodar(
+                "flatpak",
+                &["list", "--app", escopo, "--columns=application"],
+            )
+            .map(|s| listar_com_version(&s).iter().any(|(i, _)| i == fid))
+            .unwrap_or(false);
+            if fonte_escopo == "flatpak-user" && !instalado_no_escopo && acao == "remover" {
+                return Err(InstalarError::Falha(
+                    "não há instalação do seu usuário para remover neste escopo".into(),
+                ));
+            }
             let out = match acao {
                 "instalar" | "atualizar" => Command::new("flatpak")
                     .args([
                         "install",
-                        "--system",
+                        escopo,
                         "--noninteractive",
                         "-y",
                         "flathub",
@@ -233,7 +334,7 @@ pub fn acao_app(id: &str, acao: &str, fonte: &str) -> Result<String, InstalarErr
                     .output()
                     .map_err(|e| InstalarError::Execucao(e.to_string()))?,
                 "remover" => Command::new("flatpak")
-                    .args(["uninstall", "--system", "-y", "--noninteractive", fid])
+                    .args(["uninstall", escopo, "-y", "--noninteractive", fid])
                     .output()
                     .map_err(|e| InstalarError::Execucao(e.to_string()))?,
                 _ => return Err(InstalarError::Fonte),
@@ -326,7 +427,7 @@ pub fn progresso_listar() -> Vec<ProgressoItem> {
 pub fn forks_wine() -> Vec<InfoCompat> {
     let mut lista = Vec::new();
     for pkg in ["wine", "wine-staging", "wine-cachyos"] {
-        let repo = pacote_repo(pkg);
+        let repo = super::pkgmgr::na_repo(pkg);
         lista.push(InfoCompat {
             chave: pkg.to_string(),
             nome: match pkg {
@@ -335,7 +436,7 @@ pub fn forks_wine() -> Vec<InfoCompat> {
                 _ => "Wine CachyOS (otimizado)".to_string(),
             },
             disponivel: repo.is_some(),
-            versao_atual: pacote_instalado(pkg),
+            versao_atual: super::pkgmgr::instalado(pkg),
             versao_repo: repo,
         });
     }

@@ -7,6 +7,7 @@ export interface FonteInfo {
   instalado: boolean;
   versao?: string | null;
   versaoRepo?: string | null;
+  motivo?: string | null;
 }
 
 export interface AppDetail {
@@ -44,6 +45,7 @@ let detalheAtual: AppDetail | null = null;
 
 function fonteLabel(f: string): string {
   if (f === "flatpak") return "Flatpak";
+  if (f === "flatpak-user") return "Flatpak (usuário)";
   if (f.startsWith("nativo:")) return `Nativo (${f.split(":")[1]})`;
   return f;
 }
@@ -93,9 +95,14 @@ function renderDetail(d: AppDetail): void {
 
   const fontesMeta = d.fontes.map((f) => {
     const estado = f.instalado ? "Instalado" : f.disponivel ? "Disponível" : "Indisponível";
+    const detalhes: string[] = [];
+    if (f.instalado && f.versao) detalhes.push(`versão instalada: ${f.versao}`);
+    if (f.versao && !f.instalado) detalhes.push(`versão no repositório: ${f.versao}`);
+    if (f.motivo) detalhes.push(f.motivo);
     return (`
       <li class="kv-lista-item">${esc(fonteLabel(f.fonte))} — <strong>${estado}</strong>
-      ${f.versao ? ` <span class="muted num">${esc(f.versao)}</span>` : ""}</li>`);
+      ${detalhes.length > 0 ? ` <span class="muted">(${esc(detalhes.join("; "))})</span>` : ""}
+      ${!f.instalado && f.disponivel && f.versaoRepo ? ` <span class="muted num">${esc(f.versaoRepo)}</span>` : ""}</li>`);
   }).join("");
 
   const algumInstalado = d.fontes.some((f) => f.instalado);

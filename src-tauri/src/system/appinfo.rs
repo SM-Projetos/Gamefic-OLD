@@ -4,6 +4,8 @@ pub struct AppInfo {
     pub nome: &'static str,
     pub fornecedor: &'static str,
     pub licenca: &'static str,
+    /// referência oficial usada para configurar fontes e comandos
+    pub doc: &'static str,
     pub desc_curta: &'static str,
     pub desc_longa: &'static str,
     pub nativos: &'static [&'static str],
@@ -14,6 +16,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "steam",
         gui: true,
+        doc: "https://repo.steampowered.com/steam/",
         nome: "Steam",
         fornecedor: "Valve Corporation",
         licenca: "Proprietária (gratuita)",
@@ -25,6 +28,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "lutris",
         gui: true,
+        doc: "https://github.com/lutris/lutris/blob/master/docs/README.md",
         nome: "Lutris",
         fornecedor: "Comunidade Lutris",
         licenca: "GPL-3.0",
@@ -36,6 +40,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "heroic",
         gui: true,
+        doc: "https://heroicgameslauncher.com",
         nome: "Heroic Games Launcher",
         fornecedor: "Heroic Games Launcher (comunidade)",
         licenca: "GPL-3.0",
@@ -47,6 +52,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "bottles",
         gui: true,
+        doc: "https://docs.usebottles.com",
         nome: "Bottles",
         fornecedor: "Bottles Developers",
         licenca: "GPL-3.0",
@@ -58,6 +64,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "itch",
         gui: true,
+        doc: "https://itch.io/docs/itch/",
         nome: "Itch",
         fornecedor: "itch.io (Leaf Corcoran)",
         licenca: "MIT (cliente)",
@@ -69,6 +76,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "minigalaxy",
         gui: true,
+        doc: "https://github.com/sharkwouter/minigalaxy",
         nome: "Minigalaxy",
         fornecedor: "Comunidade Minigalaxy",
         licenca: "GPL-3.0",
@@ -80,6 +88,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "gamemode",
         gui: false,
+        doc: "https://github.com/FeralInteractive/gamemode",
         nome: "GameMode",
         fornecedor: "Feral Interactive",
         licenca: "BSD-3-Clause",
@@ -91,6 +100,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "mangohud",
         gui: false,
+        doc: "https://github.com/flightlessmango/MangoHud",
         nome: "MangoHud",
         fornecedor: "Comunidade MangoHud",
         licenca: "MIT",
@@ -102,6 +112,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "gamescope",
         gui: false,
+        doc: "https://github.com/ValveSoftware/gamescope",
         nome: "Gamescope",
         fornecedor: "Valve Corporation",
         licenca: "BSD-2-Clause",
@@ -113,6 +124,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "lact",
         gui: true,
+        doc: "https://github.com/ilya-zlobintsev/LACT",
         nome: "LACT",
         fornecedor: "Ilya Zlobintsev",
         licenca: "MIT",
@@ -124,6 +136,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "goverlay",
         gui: true,
+        doc: "https://github.com/benjamimgois/goverlay",
         nome: "GOverlay",
         fornecedor: "Benjami Gois / comunidade",
         licenca: "GPL-3.0",
@@ -135,6 +148,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "winetricks",
         gui: false,
+        doc: "https://github.com/Winetricks/winetricks",
         nome: "Winetricks",
         fornecedor: "Winetricks Contributors",
         licenca: "LGPL-2.1",
@@ -146,6 +160,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "protontricks",
         gui: false,
+        doc: "https://github.com/Matoking/protontricks",
         nome: "Protontricks",
         fornecedor: "Matoking",
         licenca: "GPL-3.0",
@@ -157,6 +172,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "wine",
         gui: false,
+        doc: "https://wiki.winehq.org/Main_Page",
         nome: "Wine",
         fornecedor: "WineHQ",
         licenca: "LGPL-2.1",
@@ -168,6 +184,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "retroarch",
         gui: true,
+        doc: "https://docs.libretro.com",
         nome: "RetroArch",
         fornecedor: "Libretro",
         licenca: "GPL-3.0",
@@ -179,6 +196,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "dolphin",
         gui: true,
+        doc: "https://dolphin-emu.org/docs/",
         nome: "Dolphin",
         fornecedor: "Dolphin Emulator Team",
         licenca: "GPL-2.0",
@@ -190,6 +208,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "pcsx2",
         gui: true,
+        doc: "https://pcsx2.net/docs/",
         nome: "PCSX2",
         fornecedor: "PCSX2 Development Team",
         licenca: "GPL-3.0",
@@ -201,6 +220,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "rpcs3",
         gui: true,
+        doc: "https://rpcs3.net/quickstart",
         nome: "RPCS3",
         fornecedor: "RPCS3 Team",
         licenca: "GPL-2.0",
@@ -212,6 +232,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "ppsspp",
         gui: true,
+        doc: "https://github.com/hrydgard/ppsspp",
         nome: "PPSSPP",
         fornecedor: "Henrik Rydgård",
         licenca: "GPL-2.0",
@@ -223,6 +244,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "duck",
         gui: true,
+        doc: "https://www.duckstation.org",
         nome: "DuckStation",
         fornecedor: "Stenzek",
         licenca: "BSD-3-Clause",
@@ -234,6 +256,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "mgba",
         gui: true,
+        doc: "https://mgba.io/docs.html",
         nome: "mGBA",
         fornecedor: "Jeffrey Pfau",
         licenca: "MPL-2.0",
@@ -245,6 +268,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "mame",
         gui: true,
+        doc: "https://docs.mamedev.org",
         nome: "MAME",
         fornecedor: "MAMEdev",
         licenca: "GPL-2.0 (núcleo) / BSD-3",

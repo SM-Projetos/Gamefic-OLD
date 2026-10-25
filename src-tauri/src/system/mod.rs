@@ -5,6 +5,8 @@ pub mod icons;
 pub mod install;
 pub mod memory;
 pub mod os;
+
+pub mod pkgmgr;
 pub mod sensors;
 pub mod storage;
 pub mod tools;
