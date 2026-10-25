@@ -136,7 +136,8 @@
 .content {
   grid-area: content;
   overflow-y: auto;
-  padding: var(--space-6);
+  overflow-x: visible;
+  padding: var(--space-8);
 }
 
 /* cada página rola por si: muda/volta mantém a posição onde parou */

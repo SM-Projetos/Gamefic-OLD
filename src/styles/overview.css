@@ -683,6 +683,8 @@
   width: 100%;
   max-height: calc(100vh - 140px);
   overflow-y: auto;
+  padding: var(--space-4);
+  margin: var(--space-4);
 }
 
 .app-detalhe__icone {
