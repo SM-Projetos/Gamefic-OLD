@@ -20,6 +20,7 @@ pub struct FonteInfo {
 pub struct AppDetail {
     pub id: String,
     pub nome: String,
+    pub gui: bool,
     pub fornecedor: String,
     pub licenca: String,
     pub desc_curta: String,
@@ -115,6 +116,7 @@ pub fn detail(id: &str) -> Option<AppDetail> {
     Some(AppDetail {
         id: info.id.to_string(),
         nome: info.nome.to_string(),
+        gui: info.gui,
         fornecedor: info.fornecedor.to_string(),
         licenca: info.licenca.to_string(),
         desc_curta: info.desc_curta.to_string(),
@@ -130,6 +132,12 @@ pub fn detail(id: &str) -> Option<AppDetail> {
 /// Flatpak: `flatpak run <id>`; nativo: o binário do pacote.
 pub fn abrir_launcher(id: &str) -> Result<String, String> {
     let info = achado(id).ok_or_else(|| "aplicativo desconhecido".to_string())?;
+    if !info.gui {
+        return Err(format!(
+            "{} é uma ferramenta de linha de comando e não tem interface gráfica para iniciar",
+            info.nome
+        ));
+    }
     let instalados = flatpaks_instalados();
 
     if let Some(fid) = info.flatpak {

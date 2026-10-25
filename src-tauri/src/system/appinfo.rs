@@ -1,5 +1,6 @@
 pub struct AppInfo {
     pub id: &'static str,
+    pub gui: bool,
     pub nome: &'static str,
     pub fornecedor: &'static str,
     pub licenca: &'static str,
@@ -12,6 +13,7 @@ pub struct AppInfo {
 pub(crate) const REGISTRY: &[AppInfo] = &[
     AppInfo {
         id: "steam",
+        gui: true,
         nome: "Steam",
         fornecedor: "Valve Corporation",
         licenca: "Proprietária (gratuita)",
@@ -22,6 +24,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "lutris",
+        gui: true,
         nome: "Lutris",
         fornecedor: "Comunidade Lutris",
         licenca: "GPL-3.0",
@@ -32,6 +35,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "heroic",
+        gui: true,
         nome: "Heroic Games Launcher",
         fornecedor: "Heroic Games Launcher (comunidade)",
         licenca: "GPL-3.0",
@@ -42,6 +46,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "bottles",
+        gui: true,
         nome: "Bottles",
         fornecedor: "Bottles Developers",
         licenca: "GPL-3.0",
@@ -52,6 +57,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "itch",
+        gui: true,
         nome: "Itch",
         fornecedor: "itch.io (Leaf Corcoran)",
         licenca: "MIT (cliente)",
@@ -62,6 +68,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "minigalaxy",
+        gui: true,
         nome: "Minigalaxy",
         fornecedor: "Comunidade Minigalaxy",
         licenca: "GPL-3.0",
@@ -72,6 +79,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "gamemode",
+        gui: false,
         nome: "GameMode",
         fornecedor: "Feral Interactive",
         licenca: "BSD-3-Clause",
@@ -82,6 +90,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "mangohud",
+        gui: false,
         nome: "MangoHud",
         fornecedor: "Comunidade MangoHud",
         licenca: "MIT",
@@ -92,6 +101,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "gamescope",
+        gui: false,
         nome: "Gamescope",
         fornecedor: "Valve Corporation",
         licenca: "BSD-2-Clause",
@@ -102,6 +112,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "lact",
+        gui: true,
         nome: "LACT",
         fornecedor: "Ilya Zlobintsev",
         licenca: "MIT",
@@ -112,6 +123,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "goverlay",
+        gui: true,
         nome: "GOverlay",
         fornecedor: "Benjami Gois / comunidade",
         licenca: "GPL-3.0",
@@ -122,6 +134,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "winetricks",
+        gui: false,
         nome: "Winetricks",
         fornecedor: "Winetricks Contributors",
         licenca: "LGPL-2.1",
@@ -132,6 +145,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "protontricks",
+        gui: false,
         nome: "Protontricks",
         fornecedor: "Matoking",
         licenca: "GPL-3.0",
@@ -142,6 +156,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "wine",
+        gui: false,
         nome: "Wine",
         fornecedor: "WineHQ",
         licenca: "LGPL-2.1",
@@ -152,6 +167,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "retroarch",
+        gui: true,
         nome: "RetroArch",
         fornecedor: "Libretro",
         licenca: "GPL-3.0",
@@ -162,6 +178,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "dolphin",
+        gui: true,
         nome: "Dolphin",
         fornecedor: "Dolphin Emulator Team",
         licenca: "GPL-2.0",
@@ -172,6 +189,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "pcsx2",
+        gui: true,
         nome: "PCSX2",
         fornecedor: "PCSX2 Development Team",
         licenca: "GPL-3.0",
@@ -182,6 +200,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "rpcs3",
+        gui: true,
         nome: "RPCS3",
         fornecedor: "RPCS3 Team",
         licenca: "GPL-2.0",
@@ -192,6 +211,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "ppsspp",
+        gui: true,
         nome: "PPSSPP",
         fornecedor: "Henrik Rydgård",
         licenca: "GPL-2.0",
@@ -202,6 +222,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "duck",
+        gui: true,
         nome: "DuckStation",
         fornecedor: "Stenzek",
         licenca: "BSD-3-Clause",
@@ -212,6 +233,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "mgba",
+        gui: true,
         nome: "mGBA",
         fornecedor: "Jeffrey Pfau",
         licenca: "MPL-2.0",
@@ -222,6 +244,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
     },
     AppInfo {
         id: "mame",
+        gui: true,
         nome: "MAME",
         fornecedor: "MAMEdev",
         licenca: "GPL-2.0 (núcleo) / BSD-3",

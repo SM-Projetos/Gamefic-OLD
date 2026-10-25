@@ -12,6 +12,7 @@ export interface FonteInfo {
 export interface AppDetail {
   id: string;
   nome: string;
+  gui: boolean;
   fornecedor: string;
   licenca: string;
   descCurta: string;
@@ -210,7 +211,7 @@ function atualizarEstadoEntrada(): void {
     btnRemover.disabled = !f || !f.instalado;
   }
 
-  if (!btnAbrir && algumInstalado && fonteInstalada) {
+  if (!btnAbrir && detalheAtual?.gui && algumInstalado && fonteInstalada) {
     const acoes = document.querySelector<HTMLDivElement>(".app-detalhe__acoes");
     if (acoes) {
       const btn = document.createElement("button");
@@ -260,6 +261,8 @@ export function wireAppClicks(): void {
         abrirModalCompat();
         return;
       }
+      // itens de compatibilidade (Wine, Protons) não têm página de instalação
+      if (gid === "ov-compat") return;
       const id = tile.dataset.appId;
       if (id && !id.startsWith("proton:")) abrirApp(id);
     });
