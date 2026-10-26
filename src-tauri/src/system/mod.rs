@@ -7,6 +7,8 @@ pub mod memory;
 pub mod os;
 
 pub mod pkgmgr;
+
+pub mod steam;
 pub mod sensors;
 pub mod storage;
 pub mod tools;

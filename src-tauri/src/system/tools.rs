@@ -254,11 +254,11 @@ pub fn compatibility() -> Vec<AppEntry> {
 pub(crate) fn detectar_protons() -> Vec<(String, Option<String>)> {
     let mut achados: Vec<String> = Vec::new();
 
-    let mut bases: Vec<PathBuf> = Vec::new();
-    if let Ok(dir) = std::env::var("HOME") {
-        bases.push(PathBuf::from(&dir).join(".local/share/Steam/compatibilitytools.d"));
-        bases.push(PathBuf::from(&dir).join(".steam/steam/compatibilitytools.d"));
-    }
+    // todas as raízes Steam detectadas (nativa, Flatpak, Snap)
+    let bases: Vec<PathBuf> = super::steam::raizes_steam()
+        .iter()
+        .map(|r| r.join("compatibilitytools.d"))
+        .collect();
 
     for base in bases {
         if let Ok(entries) = fs::read_dir(&base) {

@@ -67,7 +67,6 @@ fn detail_fontes_estrutura() {
 /// precisa apontar para um tarball do mesmo repositório (sem URLs inventadas)
 #[test]
 fn assets_do_ultimo_release_github() {
-    use crate::system::install::forks_proton;
     let forks = forks_proton();
     assert!(!forks.is_empty());
     for chave in ["ge", "rtsp", "em", "wineland"] {
@@ -79,6 +78,105 @@ fn assets_do_ultimo_release_github() {
                 "{chave}: tag de ruído no feed: {v}"
             );
         }
+    }
+}
+
+/// limpeza do histórico: só itens finalizados saem; em andamento/pausado
+/// nunca são removidos (§3 e §9 do spec)
+#[test]
+fn progresso_limpar_preserva_andamento() {
+    use crate::system::install::{progresso_iniciar, progresso_limpar, progresso_listar, progresso_atualizar};
+
+    let ids = ["t-erro:a", "t-erro:b", "t-erro:c", "t-erro:d", "t-erro:e"];
+    for id in ids {
+        progresso_iniciar(id, id, "preparando");
+    }
+    progresso_atualizar("t-erro:a", None, None, Some("concluido"));
+    progresso_atualizar("t-erro:b", None, None, Some("erro"));
+    progresso_atualizar("t-erro:c", None, None, Some("cancelado"));
+    progresso_atualizar("t-erro:d", None, None, Some("pausado"));
+    // t-erro:e permanece em andamento
+
+    // "erro": remove erro e cancelado; preserva concluido, pausado, andamento
+    progresso_limpar("erro");
+    let restantes: Vec<String> = progresso_listar()
+        .iter()
+        .filter(|p| p.id.starts_with("t-erro:"))
+        .map(|p| p.id.clone())
+        .collect();
+    assert_eq!(restantes, vec!["t-erro:a", "t-erro:d", "t-erro:e"]);
+
+    // "finalizados": remove também o concluido; preserva pausado/andamento
+    progresso_limpar("finalizados");
+    let restantes: Vec<String> = progresso_listar()
+        .iter()
+        .filter(|p| p.id.starts_with("t-erro:"))
+        .map(|p| p.id.clone())
+        .collect();
+    assert_eq!(restantes, vec!["t-erro:d", "t-erro:e"]);
+    progresso_limpar("finalizados");
+}
+
+/// controles de download: pedir_pausar/pedir_cancelar refletem no átomo e
+/// estado_dl só existe para operação registrada (§2.1)
+#[test]
+fn controles_download_estados() {
+    use crate::system::install::{estado_dl, pedir_cancelar, pedir_pausar};
+    pedir_pausar("t-ctl-inexistente");
+    pedir_cancelar("t-ctl-inexistente"); // não pode panicar fora de registro
+    assert!(estado_dl("t-ctl-inexistente").is_none());
+}
+
+/// pausar preserva operação (não cancela); cancelar apaga o parcial salvo
+#[test]
+fn pausa_preserva_estado_e_cancelar_limpa() {
+    use crate::system::install::{estado_dl, pedir_cancelar, pedir_pausar, progresso_atualizar, progresso_iniciar, progresso_listar};
+    let id = "t-pausa:ge:GE-ProtonX";
+    progresso_iniciar(id, "Proton X", "preparando");
+    progresso_atualizar(id, None, None, Some("pausado"));
+    pedir_pausar(id); // só sinaliza; item continua pausado no histórico
+    assert!(
+        progresso_listar().iter().any(|p| p.id == id && p.estado == "pausado"),
+        "pausa não deve remover a operação"
+    );
+    progresso_atualizar(id, None, None, Some("cancelado"));
+    pedir_cancelar(id); // limpa estado parcial; item cancelado permanece no histórico
+    assert!(estado_dl(id).is_none());
+    assert!(progresso_listar().iter().any(|p| p.id == id && p.estado == "cancelado"));
+}
+
+/// detecção de Protons pelo Steam: não pode panicar; em máquina com Steam
+/// real, as entradas apontam para bibliotecas existentes
+#[test]
+fn steam_protons_estados() {
+    use crate::system::steam::{protons_custom, protons_oficiais, raizes_steam};
+    let raizes = raizes_steam();
+    for r in &raizes {
+        assert!(r.is_dir());
+        // destino sempre dentro de uma raiz detectada
+    }
+    for p in protons_oficiais().iter().chain(protons_custom().iter()) {
+        assert!(
+            std::path::Path::new(&p.caminho).join("proton").exists(),
+            "caminho sem executável proton: {}",
+            p.caminho
+        );
+    }
+}
+
+/// remoção com validação: caminho fora dos diretórios gerenciados do Steam
+/// é recusado sem apagar nada (§4.2)
+#[test]
+fn remover_ferramenta_recusa_caminho_invalido() {
+    use crate::system::steam::remover_ferramenta;
+    let falsos = [
+        "/tmp/fake-proton",
+        "/home/outro/Steam/compatibilitytools.d/x",
+        "/usr/share/steam/Proton - Uses",
+    ];
+    for f in falsos {
+        let r = remover_ferramenta(f);
+        assert!(r.is_err(), "não deveria remover {f}");
     }
 }
 

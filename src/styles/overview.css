@@ -879,6 +879,28 @@
   animation: compat-progresso-pulso 1.4s ease-in-out infinite;
 }
 
+/* controles (pausar/retomar/cancelar/remover) alinhados à direita do item */
+.compat-progresso-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.compat-progresso-acoes .btn {
+  padding: var(--space-1) var(--space-3);
+  font-size: 12px;
+}
+
+.compat-progresso-estado[data-estado="pausado"],
+.compat-progresso-estado[data-estado="cancelado"],
+.compat-progresso-estado[data-estado="instalado"] {
+  color: var(--text-muted);
+}
+
+.compat-progresso-estado[data-estado="pausado"] {
+  color: var(--accent-yellow, var(--text-muted));
+}
+
 @keyframes compat-progresso-pulso {
   0%, 100% { opacity: 0.25; }
   50% { opacity: 0.8; }

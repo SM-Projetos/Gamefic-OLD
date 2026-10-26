@@ -366,8 +366,14 @@ pub struct ProgressoItem {
     pub nome: String,
     pub desc: String,
     pub pct: Option<u32>,
-    /// "andamento" | "concluido" | "erro"
+    /// "aguardando" | "baixando" | "pausado" | "instalando" | "concluido" | "erro" | "cancelado"
     pub estado: String,
+    /// subfase detalhada para os controles da interface
+    pub fase: Option<String>,
+    pub kb_feitos: Option<u64>,
+    pub kb_total: Option<u64>,
+    /// bytes/s medidos no intervalo de amostragem
+    pub velocidade: Option<u64>,
 }
 
 static PROGRESSO: std::sync::Mutex<Vec<ProgressoItem>> = std::sync::Mutex::new(Vec::new());
@@ -387,8 +393,20 @@ pub fn progresso_iniciar(id: &str, nome: &str, desc: &str) -> bool {
         desc: desc.to_string(),
         pct: None,
         estado: "andamento".to_string(),
+        fase: Some("aguardando".to_string()),
+        kb_feitos: None,
+        kb_total: None,
+        velocidade: None,
     });
     true
+}
+
+/// atualiza a subfase do item (usada pelo motor de download)
+pub fn progresso_fase(id: &str, fase: &str) {
+    let mut l = PROGRESSO.lock().expect("mutex do progresso");
+    if let Some(p) = l.iter_mut().find(|p| p.id == id) {
+        p.fase = Some(fase.to_string());
+    }
 }
 
 pub fn progresso_atualizar(id: &str, desc: Option<&str>, pct: Option<u32>, estado: Option<&str>) {
@@ -413,12 +431,18 @@ pub fn progresso_atualizar(id: &str, desc: Option<&str>, pct: Option<u32>, estad
     }
 }
 
-/// remove itens concluídos/errados (chamado quando a janela é fechada)
-pub fn progresso_remover_concluidos() {
-    PROGRESSO
-        .lock()
-        .expect("mutex do progresso")
-        .retain(|p| p.estado == "andamento");
+/// limpa o histórico: "erro" remove apenas itens finalizados com falha
+/// (erro ou cancelado); "finalizados" remove tudo que não esteja em
+/// andamento/pausado — operações ativas nunca são afetadas
+pub fn progresso_limpar(modo: &str) {
+    let mut l = PROGRESSO.lock().expect("mutex do progresso");
+    match modo {
+        "erro" => l.retain(|p| p.estado != "erro" && p.estado != "cancelado"),
+        "finalizados" => l.retain(|p| {
+            matches!(p.estado.as_str(), "andamento" | "pausado" | "cancelando")
+        }),
+        _ => {}
+    }
 }
 
 pub fn progresso_listar() -> Vec<ProgressoItem> {
@@ -427,6 +451,22 @@ pub fn progresso_listar() -> Vec<ProgressoItem> {
 }
 
 // ---------- Wine ----------
+
+/// remove uma variante de Wine pelo gerenciador de pacotes; o pacote precisa
+/// pertencer ao catálogo da própria ferramenta e estar efetivamente instalado
+pub fn remover_wine(pkg: &str) -> Result<String, InstalarError> {
+    if !["wine", "wine-staging", "wine-cachyos"].contains(&pkg) {
+        return Err(InstalarError::Fonte);
+    }
+    let Some(versao) = super::pkgmgr::instalado(pkg) else {
+        return Err(InstalarError::Execucao(format!(
+            "o pacote {pkg} não está instalado por este gerenciador"
+        )));
+    };
+    super::pkgmgr::remover(pkg)
+        .map(|_| format!("Wine {versao} removido"))
+        .map_err(InstalarError::Falha)
+}
 
 pub fn forks_wine() -> Vec<InfoCompat> {
     let mut lista = Vec::new();
@@ -524,6 +564,11 @@ pub fn instalar_wine(pkg: &str, mut prog: Option<PassoProg>) -> Result<String, I
 pub(crate) const PROTON_MAX_MB: u64 = 900;
 
 fn diretorio_proton() -> Option<PathBuf> {
+    // destino correto conforme a instalação efetiva do Steam detectada
+    // (nativa, Flatpak ou Snap); mantém fallback nos caminhos clássicos
+    if let Some(d) = super::steam::destino_compat() {
+        return Some(d);
+    }
     let home = std::env::var("HOME").ok()?;
     let base = [
         PathBuf::from(&home).join(".local/share/Steam/compatibilitytools.d"),
@@ -677,10 +722,21 @@ const FORKS_PROTON: &[ForkProton] = &[
     ForkProton {
         chave: "wineland",
         nome: "Proton-Wineland",
-        repositorio: "nanomatters/proton-cachyos",
+        // renomeado de nanomatters/proton-cachyos; releases "Proton Wineland"
+        repositorio: "nanomatters/proton-salkim",
         pacote: None,
         fonte: FonteProton::Github,
         detect: "wineland",
+    },
+    ForkProton {
+        chave: "winege",
+        nome: "Wine-GE (histórico)",
+        // projeto arquivado (07/2025); sucessor: UMU. Versões históricas
+        // ainda instaláveis em compatibilitytools.d (ge-proton8/wine-lutris)
+        repositorio: "GloriousEggroll/wine-ge-custom",
+        pacote: None,
+        fonte: FonteProton::Github,
+        detect: "wine-lutris",
     },
     ForkProton {
         chave: "luxtorpeda",
@@ -886,9 +942,104 @@ fn asset_url_github(repositorio: &str, tag: &str) -> Result<String, InstalarErro
     Ok(escolhido)
 }
 
+// ---------- controles e estado dos downloads por operação ----------
+
+/// 0 = normal | 1 = pediu pausar | 2 = pediu cancelar
+#[derive(Default, Clone)]
+pub struct EstadoDl {
+    pub feitos: u64,
+    pub total: Option<u64>,
+    pub url: String,
+    pub tmp: std::path::PathBuf,
+    pub tag: String,
+    pub extensao: String,
+}
+
+fn controles_dl() -> &'static std::sync::Mutex<std::collections::HashMap<String, Arc<std::sync::atomic::AtomicU8>>> {
+    static M: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<String, Arc<std::sync::atomic::AtomicU8>>>,
+    > = std::sync::OnceLock::new();
+    M.get_or_init(Default::default)
+}
+
+fn estados_dl() -> &'static std::sync::Mutex<std::collections::HashMap<String, EstadoDl>> {
+    static M: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<String, EstadoDl>>,
+    > = std::sync::OnceLock::new();
+    M.get_or_init(Default::default)
+}
+
+use std::sync::atomic::{AtomicU8, Ordering};
+use std::sync::Arc;
+
+fn controle_de(id: &str) -> Arc<AtomicU8> {
+    controles_dl()
+        .lock()
+        .expect("mutex dos controles")
+        .entry(id.to_string())
+        .or_insert_with(|| Arc::new(AtomicU8::new(0)))
+        .clone()
+}
+
+/// estado salvo de um download (feitos, url, arquivo parcial)
+pub fn estado_dl(id: &str) -> Option<EstadoDl> {
+    estados_dl().lock().expect("mutex dos estados").get(id).cloned()
+}
+
+fn descartar_estado_dl(id: &str) {
+    estados_dl().lock().expect("mutex dos estados").remove(id);
+}
+
+/// pausa a operação: o laço de download percebe e preserva o arquivo parcial
+pub fn pedir_pausar(id: &str) {
+    controle_de(id).store(1, Ordering::SeqCst);
+}
+
+/// cancela a operação: o laço (se ativo) apaga o parcial e volta erro;
+/// se a operação está pausada, a limpeza acontece imediatamente aqui
+pub fn pedir_cancelar(id: &str) {
+    controle_de(id).store(2, Ordering::SeqCst);
+    let parcial = estados_dl()
+        .lock()
+        .expect("mutex dos estados")
+        .get(id)
+        .map(|e| e.tmp.clone());
+    if let Some(tmp) = parcial {
+        let _ = fs::remove_file(&tmp);
+    }
+    descartar_estado_dl(id);
+}
+
+/// atualiza o item de progresso com o andamento real do download
+fn progresso_dl(id: &str, feitos: u64, total: Option<u64>, vel: u64) {
+    let mut l = PROGRESSO.lock().expect("mutex do progresso");
+    if let Some(p) = l.iter_mut().find(|p| p.id == id) {
+        p.kb_feitos = Some(feitos / 1024);
+        p.kb_total = total.map(|t| t / 1024);
+        p.velocidade = if vel > 0 { Some(vel) } else { None };
+        match total {
+            Some(t) if t > 0 => {
+                let pct = ((feitos * 100) / t).min(100) as u32;
+                p.pct = Some(pct);
+                p.desc = format!(
+                    "Baixando ({:.1}/{:.1} MB, {:.1} MB/s)...",
+                    feitos as f64 / 1e6,
+                    t as f64 / 1e6,
+                    vel as f64 / 1e6
+                );
+            }
+            _ => {
+                p.desc = format!("Baixando ({:.1} MB)...", feitos as f64 / 1e6);
+            }
+        }
+    }
+}
+
 pub fn instalar_proton(
     fork: &str,
     versao: &str,
+    id: &str,
+    retomar: bool,
     mut prog: Option<PassoProg>,
 ) -> Result<String, InstalarError> {
     use std::io::{Read, Write};
@@ -918,70 +1069,188 @@ pub fn instalar_proton(
         }
     }
 
-    if let Some(cb) = &mut prog {
-        cb(None, "Resolvendo versão e endereço de download...");
-    }
+    let controle = controle_de(id);
+    controle.store(0, Ordering::SeqCst);
+    progresso_fase(id, "aguardando");
 
-    // descobre o nome interno do fork p/ resolver a versão
-    let tag = if versao == "latest" {
-        releases_fork(f)?
-            .into_iter()
-            .next()
-            .and_then(|(t, _)| (!t.is_empty()).then_some(t))
-            .ok_or(InstalarError::Execucao("sem releases".to_string()))?
-    } else {
-        versao.to_string()
-    };
-    let url_download = match f.fonte {
-        FonteProton::Forgejo => releases_fork(f)?
-            .into_iter()
-            .find(|(t, _)| *t == tag)
-            .and_then(|(_, a)| a)
-            .ok_or(InstalarError::Execucao(
-                "sem binário no release".to_string(),
-            ))?,
-        _ => asset_url_github(f.repositorio, &tag)?,
-    };
-    let extensao = if url_download.to_lowercase().ends_with(".tar.xz") {
-        "tar.xz"
-    } else if url_download.to_lowercase().ends_with(".tar.zst") {
-        "tar.zst"
-    } else {
-        "tar.gz"
-    };
+    // 1) resolver versão/endereço — numa retomada, usa o estado salvo
+    let salvo = if retomar { estado_dl(id) } else { None };
+    let (tag, url_download, _extensao, tmp) = match &salvo {
+        Some(s) => (
+            s.tag.clone(),
+            s.url.clone(),
+            s.extensao.clone(),
+            s.tmp.clone(),
+        ),
+        None => {
+            if let Some(cb) = &mut prog {
+                cb(None, "Resolvendo versão e endereço de download...");
+            }
 
-    // download para /tmp, com relato de progresso
-    let tmp = std::env::temp_dir().join(format!("gamefic-{}.{}", fork, extensao));
-    let resp = ureq::get(&url_download)
-        .set("User-Agent", "gamefic")
-        .timeout(std::time::Duration::from_secs(900))
-        .call()
-        .map_err(|e| {
+            // descobre o nome interno do fork p/ resolver a versão
+            let tag = if versao == "latest" {
+                releases_fork(f)?
+                    .into_iter()
+                    .next()
+                    .and_then(|(t, _)| (!t.is_empty()).then_some(t))
+                    .ok_or(InstalarError::Execucao("sem releases".to_string()))?
+            } else {
+                versao.to_string()
+            };
+            let url_download = match f.fonte {
+                FonteProton::Forgejo => releases_fork(f)?
+                    .into_iter()
+                    .find(|(t, _)| *t == tag)
+                    .and_then(|(_, a)| a)
+                    .ok_or(InstalarError::Execucao(
+                        "sem binário no release".to_string(),
+                    ))?,
+                _ => asset_url_github(f.repositorio, &tag)?,
+            };
+            let extensao = if url_download.to_lowercase().ends_with(".tar.xz") {
+                "tar.xz"
+            } else if url_download.to_lowercase().ends_with(".tar.zst") {
+                "tar.zst"
+            } else {
+                "tar.gz"
+            };
+
+            // download para /tmp, com relato de progresso
+            let tmp = std::env::temp_dir().join(format!("gamefic-{}.{}", fork, extensao));
             let _ = fs::remove_file(&tmp);
+            estados_dl()
+                .lock()
+                .expect("mutex dos estados")
+                .insert(
+                    id.to_string(),
+                    EstadoDl {
+                        feitos: 0,
+                        total: None,
+                        url: url_download.clone(),
+                        tmp: tmp.clone(),
+                        tag: tag.clone(),
+                        extensao: extensao.to_string(),
+                    },
+                );
+            progresso_fase(id, "baixando");
+            (tag, url_download, extensao.to_string(), tmp)
+        }
+    };
+
+    // 2) abre a requisição (com Range na retomada); se o servidor não
+    // suportar Range, recomeça o arquivo do zero — nunca anexa dados
+    // incompatíveis ao parcial
+    let parcial = tmp.metadata().map(|m| m.len()).unwrap_or(0);
+    let retomavel = salvo.is_some() && parcial > 0;
+    let resultado_req = if retomavel {
+        ureq::get(&url_download)
+            .set("User-Agent", "gamefic")
+            .set("Range", &format!("bytes={parcial}-"))
+            .timeout(std::time::Duration::from_secs(900))
+            .call()
+    } else {
+        ureq::get(&url_download)
+            .set("User-Agent", "gamefic")
+            .timeout(std::time::Duration::from_secs(900))
+            .call()
+    };
+    let resp = match resultado_req {
+        Ok(r) => r,
+        Err(e) => {
             if matches!(&e, ureq::Error::Status(404, _)) {
-                InstalarError::Execucao(format!(
+                let _ = fs::remove_file(&tmp);
+                return Err(InstalarError::Execucao(format!(
                     "arquivo de distribuição não encontrado no release {tag}: a URL do projeto mudou"
-                ))
+                )));
             } else if let ureq::Error::Status(c, _) = &e {
                 if *c >= 400 {
-                    InstalarError::Execucao(format!("servidor respondeu {c} em {url_download}"))
-                } else {
-                    InstalarError::Execucao(e.to_string())
+                    return Err(InstalarError::Execucao(format!(
+                        "servidor respondeu {c} em {url_download}"
+                    )));
                 }
-            } else {
-                InstalarError::Execucao(e.to_string())
+                return Err(InstalarError::Execucao(e.to_string()));
             }
-        })?;
+            return Err(InstalarError::Execucao(e.to_string()));
+        }
+    };
+    let mut feitos: u64 = 0;
+    let mut arquivo: fs::File;
+    if retomavel {
+        if resp.status() == 206 {
+            if let Some(cb) = &mut prog {
+                cb(None, &format!(
+                    "Retomando desde {:.1} MB...",
+                    parcial as f64 / 1e6
+                ));
+            }
+            feitos = parcial;
+            arquivo = fs::OpenOptions::new()
+                .append(true)
+                .open(&tmp)
+                .map_err(|e| InstalarError::Execucao(e.to_string()))?;
+        } else if resp.status() == 200 {
+            // servidor ignora Range: recomeço limpo do zero
+            if let Some(cb) = &mut prog {
+                cb(None, "O servidor não suporta retomada; recomeçando...");
+            }
+            arquivo = fs::File::create(&tmp)
+                .map_err(|e| InstalarError::Execucao(e.to_string()))?;
+        } else {
+            let _ = fs::remove_file(&tmp);
+            descartar_estado_dl(id);
+            return Err(InstalarError::Execucao(format!(
+                "servidor respondeu {} ao pedir retomada",
+                resp.status()
+            )));
+        }
+    } else {
+        arquivo = fs::File::create(&tmp)
+            .map_err(|e| InstalarError::Execucao(e.to_string()))?;
+    }
     let total = resp
         .header("content-length")
-        .and_then(|v| v.parse::<u64>().ok());
+        .and_then(|v| v.parse::<u64>().ok())
+        .map(|v| v + feitos);
     let mut reader = resp.into_reader();
-    let mut arquivo = fs::File::create(&tmp).map_err(|e| InstalarError::Execucao(e.to_string()))?;
+
+    // grava o total no estado salvo (para exibir tamanho real)
+    if let Some(t) = total {
+        estados_dl()
+            .lock()
+            .expect("mutex dos estados")
+            .entry(id.to_string())
+            .and_modify(|e| e.total = Some(t));
+    }
+
     let limite = PROTON_MAX_MB * 1024 * 1024;
     let mut buf = [0u8; 64 * 1024];
-    let mut feitos: u64 = 0;
-    let mut ultimo: u32 = u32::MAX;
+    let mut ultimo_tick = std::time::Instant::now();
+    let mut feitos_amostra = feitos;
     loop {
+        let ctl = controle.load(Ordering::SeqCst);
+        if ctl == 2 {
+            let _ = arquivo.flush();
+            drop(arquivo);
+            let _ = fs::remove_file(&tmp);
+            descartar_estado_dl(id);
+            return Err(InstalarError::Falha(
+                "download cancelado pelo usuário".to_string(),
+            ));
+        }
+        if ctl == 1 {
+            // pausa: preserva o arquivo parcial e o estado p/ retomada
+            {
+                let mut m = estados_dl().lock().expect("mutex dos estados");
+                if let Some(s) = m.get_mut(id) {
+                    s.feitos = feitos;
+                    s.total = total;
+                }
+            }
+            let _ = arquivo.flush();
+            drop(arquivo);
+            controle.store(0, Ordering::SeqCst);
+            return Err(InstalarError::Execucao("__pausado__".to_string()));
+        }
         let n = reader
             .read(&mut buf)
             .map_err(|e| InstalarError::Execucao(e.to_string()))?;
@@ -991,6 +1260,7 @@ pub fn instalar_proton(
         feitos += n as u64;
         if feitos > limite {
             let _ = fs::remove_file(&tmp);
+            descartar_estado_dl(id);
             return Err(InstalarError::Falha(
                 "download maior que o permitido".to_string(),
             ));
@@ -998,30 +1268,26 @@ pub fn instalar_proton(
         arquivo
             .write_all(&buf[..n])
             .map_err(|e| InstalarError::Execucao(e.to_string()))?;
-        if let Some(cb) = &mut prog {
-            if let Some(t) = total {
-                if t > 0 {
-                    let pct = ((feitos * 100) / t).min(100) as u32;
-                    if pct != ultimo {
-                        ultimo = pct;
-                        cb(
-                            Some(pct),
-                            &format!(
-                                "Baixando ({:.1}/{:.1} MB)...",
-                                feitos as f64 / 1e6,
-                                t as f64 / 1e6
-                            ),
-                        );
-                    }
-                }
-            } else {
-                cb(
-                    None,
-                    &format!("Baixando ({:.1} MB)...", feitos as f64 / 1e6),
-                );
+        if ultimo_tick.elapsed() >= std::time::Duration::from_millis(500) {
+            let decorrido = ultimo_tick.elapsed().as_secs_f64();
+            let vel = ((feitos - feitos_amostra) as f64 / decorrido) as u64;
+            feitos_amostra = feitos;
+            ultimo_tick = std::time::Instant::now();
+            progresso_dl(id, feitos, total, vel);
+            if let Some(s) = estados_dl()
+                .lock()
+                .expect("mutex dos estados")
+                .get_mut(id)
+            {
+                s.feitos = feitos;
+                s.total = total;
             }
         }
     }
+    let _ = arquivo.flush();
+    drop(arquivo);
+    descartar_estado_dl(id);
+    progresso_fase(id, "instalando");
 
     // valida o formato real do arquivo antes de extrair: evita tratar
     // uma página HTML de erro como se fosse um tarball do Proton
