@@ -1,3 +1,17 @@
+/// pacote nativo associado a uma família de distribuição
+/// (familia vazia = disponível para todas as famílias suportadas)
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct PkgNat {
+    pub pkg: &'static str,
+    pub familia: &'static str,
+}
+
+impl PkgNat {
+    pub const fn todas(pkg: &'static str) -> Self {
+        PkgNat { pkg, familia: "" }
+    }
+}
+
 pub struct AppInfo {
     pub id: &'static str,
     pub gui: bool,
@@ -8,8 +22,24 @@ pub struct AppInfo {
     pub doc: &'static str,
     pub desc_curta: &'static str,
     pub desc_longa: &'static str,
-    pub nativos: &'static [&'static str],
+    /// nomes de pacotes nativos por família — base de descoberta, não prova
+    pub nativos: &'static [PkgNat],
     pub flatpak: Option<&'static str>,
+    /// nome verificado na Snap Store (vazio = sem snap oficial confirmado)
+    pub snap: Option<&'static str>,
+}
+
+impl AppInfo {
+    /// pacotes nativos aplicáveis à família detectada ("" casa com todas)
+    pub fn pacotes_aptos<'a>(self: &'a Self, familia: Option<&'a str>) -> impl Iterator<Item = &'static str> + 'a {
+        self.nativos
+            .iter()
+            .filter(move |p| {
+                p.familia.is_empty()
+                    || familia.map(|f| p.familia.eq_ignore_ascii_case(f)).unwrap_or(false)
+            })
+            .map(|p| p.pkg)
+    }
 }
 
 pub(crate) const REGISTRY: &[AppInfo] = &[
@@ -22,8 +52,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "Proprietária (gratuita)",
         desc_curta: "Loja e cliente de jogos da Valve",
         desc_longa: "Plataforma da Valve para compra, organização e execução de jogos, com gerenciamento de biblioteca, atualizações automáticas, chat de amigos, Big Picture para TV e Steam Deck. Também distribui aplicações e ferramentas de desenvolvimento, e integra sistemas de proteção e recompensas com conquistas e Mercado da comunidade.",
-        nativos: &["steam"],
+        nativos: &[
+            PkgNat::todas("steam"),
+        ],
         flatpak: Some("com.valvesoftware.Steam"),
+        snap: Some("steam"),
     },
     AppInfo {
         id: "lutris",
@@ -34,8 +67,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "GPL-3.0",
         desc_curta: "Gerenciador de jogos Wine/Proton",
         desc_longa: "Organizador de jogos de múltiplas fontes (GOG, Epic, emuladores, instaladores de Windows) em uma interface única. Cada jogo roda com o runner apropriado — Wine, Proton, DOSBox, emuladores — e sincroniza instaladores da comunidade para reduzir a configuração.",
-        nativos: &["lutris"],
+        nativos: &[
+            PkgNat::todas("lutris"),
+        ],
         flatpak: Some("net.lutris.Lutris"),
+        snap: None,
     },
     AppInfo {
         id: "heroic",
@@ -46,8 +82,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "GPL-3.0",
         desc_curta: "Launcher da Epic, GOG e Amazon",
         desc_longa: "Interface gráfica em Electron que une a Epic Games, a GOG e a Amazon Prime Gaming. Gerencia bibliotecas de plataformas rivais com suporte a Proton/Wine, Wine-GE, atualizações do próprio launcher, cloud saves e integração com Protontricks.",
-        nativos: &["heroic-games-launcher"],
+        nativos: &[
+            PkgNat::todas("heroic-games-launcher"),
+        ],
         flatpak: Some("com.heroicgameslauncher.hgl"),
+        snap: None,
     },
     AppInfo {
         id: "bottles",
@@ -59,6 +98,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         desc_curta: "Gerenciador moderno de prefixos Wine",
         desc_longa: "Ferramenta dedicada a criar e administrar prefixos Wine (\"bottles\") isolados entre si, cada um com versão própria de Wine/Proton, bibliotecas e variáveis de ambiente. Presets para gaming e programas facilitam a configuração sem lidar com comandos.",
         nativos: &[],
+        snap: None,
         flatpak: Some("com.usebottles.bottles"),
     },
     AppInfo {
@@ -71,6 +111,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         desc_curta: "Loja indie da itch.io",
         desc_longa: "Cliente desktop da loja de jogos independentes itch.io: sincroniza a biblioteca comprada ou financiada, atualiza jogáveis automaticamente em segundo plano e suporta devlog integração para criadores.",
         nativos: &[],
+        snap: None,
         flatpak: Some("io.itch.itch"),
     },
     AppInfo {
@@ -83,6 +124,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         desc_curta: "Cliente GOG simples",
         desc_longa: "Cliente leve focado em baixar, instalar e atualizar jogos da GOG com o mínimo de recursos. Permissão de salvar em outra pasta, atualização automática de títulos e suporte a DLC.",
         nativos: &[],
+        snap: None,
         flatpak: Some("com.github.sharkwouter.minigalaxy"),
     },
     AppInfo {
@@ -94,8 +136,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "BSD-3-Clause",
         desc_curta: "Daemon de otimização para jogos",
         desc_longa: "Daemon que aplica ajustes de desempenho quando um jogo solicita: preferência pelo governador de CPU, prioridade de processo e política de GPU quando o driver permite. Chamado no jogo via `gamemoderun` e configurável em per-game via ini.",
-        nativos: &["gamemode"],
+        nativos: &[
+            PkgNat::todas("gamemode"),
+        ],
         flatpak: None,
+        snap: None,
     },
     AppInfo {
         id: "mangohud",
@@ -106,8 +151,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "MIT",
         desc_curta: "Overlay de desempenho em jogos",
         desc_longa: "Overlay de Vulkan e OpenGL que exibe FPS, latência de frame, uso de CPU/GPU/VRAM e temperaturas em tempo real. Ativado com `mangohud %command%` ou variável `MANGOHUD=1`, com predefinições e batch logging para sessões inteiras.",
-        nativos: &["mangohud"],
+        nativos: &[
+            PkgNat::todas("mangohud"),
+        ],
         flatpak: None,
+        snap: None,
     },
     AppInfo {
         id: "gamescope",
@@ -118,8 +166,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "BSD-2-Clause",
         desc_curta: "Compositor de sessão de jogos",
         desc_longa: "Microcompositor Wayland da Valve para sessões de jogo isoladas: resolução ficta a célula de imagem, escalonamento AMD FSR e NIS, VRR, eingelock a taxa de cuadros e re shielding de foco latente. Base das sessões de jogo do Steam Deck.",
-        nativos: &["gamescope"],
+        nativos: &[
+            PkgNat::todas("gamescope"),
+        ],
         flatpak: None,
+        snap: None,
     },
     AppInfo {
         id: "lact",
@@ -130,8 +181,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "MIT",
         desc_curta: "Controle de GPU e ventoinhas",
         desc_longa: "Controle gráfico por interface GTK4: clock, curvas de ventoinha, limites de potência e overclock/undervolt em GPUs AMD, NVIDIA e Intel, com daemon em execução em segundo plano e monitoramento uso/temperatura. Sucessor moderno do GreenWithEnvy.",
-        nativos: &["lact"],
+        nativos: &[
+            PkgNat::todas("lact"),
+        ],
         flatpak: Some("io.github.ilya_zlobintsev.LACT"),
+        snap: None,
     },
     AppInfo {
         id: "goverlay",
@@ -142,8 +196,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "GPL-3.0",
         desc_curta: "Configurador gráfico do MangoHud",
         desc_longa: "Editor visual para o MangoHud: posiciona e organiza métricas do overlay, salta em predefinições e também configura o vkBasalt para filtros de imagem. Evita editar arquivos de configuração à mão.",
-        nativos: &["goverlay"],
+        nativos: &[
+            PkgNat::todas("goverlay"),
+        ],
         flatpak: None,
+        snap: None,
     },
     AppInfo {
         id: "winetricks",
@@ -154,8 +211,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "LGPL-2.1",
         desc_curta: "Bibliotecas e ajustes para prefixos Wine",
         desc_longa: "Script de utilidades que instala componentes nativos em prefixos Wine: codecs/C++ runtime, DirectPlay, fontes e ajustes de registro. Padrão para fazer aplicações robustas.",
-        nativos: &["winetricks"],
+        nativos: &[
+            PkgNat::todas("winetricks"),
+        ],
         flatpak: None,
+        snap: None,
     },
     AppInfo {
         id: "protontricks",
@@ -166,8 +226,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "GPL-3.0",
         desc_curta: "Winetricks por jogo do Steam",
         desc_longa: "Roda Winetricks e comandos Wine apontando para o prefixo correto de cada jogo Steam com Proton, descobrindo os AppID automaticamente. Suporte a runtime Flatpak do Steam.",
-        nativos: &["protontricks"],
+        nativos: &[
+            PkgNat::todas("protontricks"),
+        ],
         flatpak: Some("com.github.Matoking.protontricks"),
+        snap: None,
     },
     AppInfo {
         id: "wine",
@@ -178,8 +241,13 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "LGPL-2.1",
         desc_curta: "Camada de compatibilidade Windows",
         desc_longa: "Implementação livre de API Windows em Unix: executa binários nativos de Windows com camadas próprias de DLLs e conversão de chamadas, integrando com drivers e discos do Linux. Base do Proton, Lutris e Bottles.",
-        nativos: &["wine", "wine-staging", "wine-cachyos"],
+        nativos: &[
+            PkgNat::todas("wine"),
+            PkgNat::todas("wine-staging"),
+            PkgNat { pkg: "wine-cachyos", familia: "Arch" },
+        ],
         flatpak: None,
+        snap: None,
     },
     AppInfo {
         id: "retroarch",
@@ -190,8 +258,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "GPL-3.0",
         desc_curta: "Frontend de emuladores (Libretro)",
         desc_longa: "Frontend unificado sobre a API Libretro: carrega núcleos de emuladores de centenas de plataformas com shaders em tempo real, replays de input, salvamentos por slot, rewind e netplay.",
-        nativos: &["retroarch"],
+        nativos: &[
+            PkgNat::todas("retroarch"),
+        ],
         flatpak: Some("org.libretro.RetroArch"),
+        snap: Some("retroarch"),
     },
     AppInfo {
         id: "dolphin",
@@ -202,8 +273,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "GPL-2.0",
         desc_curta: "GameCube e Wii",
         desc_longa: "Emulador de referência de Nintendo GameCube e Wii: alta compatibilidade, resolução até 4K+, framerates acima do real, suporte a real Wiimote, cheat/trainer e câmera de Wii. Modos standalone e núcleo Libretro.",
-        nativos: &["dolphin-emu"],
+        nativos: &[
+            PkgNat::todas("dolphin-emu"),
+        ],
         flatpak: Some("org.DolphinEmu.dolphin-emu"),
+        snap: None,
     },
     AppInfo {
         id: "pcsx2",
@@ -214,8 +288,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "GPL-3.0",
         desc_curta: "PlayStation 2",
         desc_longa: "Emulador de PlayStation 2 com alta compatibilidade (mais de 97%), suporte de upscaling, patch de framerates, texturas substituíveis e wide-screen hacks.",
-        nativos: &["pcsx2"],
+        nativos: &[
+            PkgNat::todas("pcsx2"),
+        ],
         flatpak: Some("net.pcsx2.PCSX2"),
+        snap: None,
     },
     AppInfo {
         id: "rpcs3",
@@ -227,6 +304,7 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         desc_curta: "PlayStation 3",
         desc_longa: "Emulador e debugger de PlayStation 3: emula SPUs/PPU via recompilação rápida, graduações consistentes, boot de PSP3 e PSN em modo local e firmware customizado com atualização de firmware PS3 oficial.",
         nativos: &[],
+        snap: None,
         flatpak: Some("net.rpcs3.RPCS3"),
     },
     AppInfo {
@@ -238,8 +316,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "GPL-2.0",
         desc_curta: "PlayStation Portable (PSP)",
         desc_longa: "Emulador PSP multiplataforma: resolução pós 2x/4x, shaders, save state, multiplayer ad hoc local e suporte a Homebrew e firmware real via bootloader.",
-        nativos: &["ppsspp"],
+        nativos: &[
+            PkgNat::todas("ppsspp"),
+        ],
         flatpak: Some("org.ppsspp.PPSSPP"),
+        snap: None,
     },
     AppInfo {
         id: "duck",
@@ -250,8 +331,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "BSD-3-Clause",
         desc_curta: "PlayStation 1",
         desc_longa: "Emulador de PlayStation 1 com foco em precisão: upscaling, PGXP para geometria sem oscilação, troca de disco em poça, troca de textura em tempo real e retroachievements.",
-        nativos: &["duckstation"],
+        nativos: &[
+            PkgNat::todas("duckstation"),
+        ],
         flatpak: Some("org.duckstation.DuckStation"),
+        snap: None,
     },
     AppInfo {
         id: "mgba",
@@ -262,8 +346,11 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "MPL-2.0",
         desc_curta: "Game Boy Advance",
         desc_longa: "Emulador de Game Boy Advance com precisão de ciclos, suporte real-time a cheats, real-time clock, rpc de hardware (GBA portátil) e Beltload em capacidades de pegar jogos de GB/GBC.",
-        nativos: &["mgba"],
+        nativos: &[
+            PkgNat::todas("mgba"),
+        ],
         flatpak: Some("io.mgba.mGBA"),
+        snap: None,
     },
     AppInfo {
         id: "mame",
@@ -274,7 +361,10 @@ pub(crate) const REGISTRY: &[AppInfo] = &[
         licenca: "GPL-2.0 (núcleo) / BSD-3",
         desc_curta: "Jogos de arcade (multi-sistemas)",
         desc_longa: "Emulador de preservação histórica de milhares de máquinas de arcade, consoles e computadores antigos. Precisão de hardware documentada, ROMs verificadas por listas de software e suporte a receptáculos de joystick.",
-        nativos: &["mame"],
+        nativos: &[
+            PkgNat::todas("mame"),
+        ],
         flatpak: Some("org.mamedev.MAME"),
+        snap: None,
     },
 ];

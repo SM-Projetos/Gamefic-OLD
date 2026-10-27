@@ -8,6 +8,7 @@ export interface FonteInfo {
   versao?: string | null;
   versaoRepo?: string | null;
   motivo?: string | null;
+  indeterminado?: boolean;
 }
 
 export interface AppDetail {
@@ -46,6 +47,7 @@ let detalheAtual: AppDetail | null = null;
 function fonteLabel(f: string): string {
   if (f === "flatpak") return "Flatpak";
   if (f === "flatpak-user") return "Flatpak (usuário)";
+  if (f.startsWith("snap:")) return `Snap Store (${f.split(":")[1]})`;
   if (f.startsWith("nativo:")) return `Nativo (${f.split(":")[1]})`;
   return f;
 }
@@ -107,7 +109,21 @@ function renderDetail(d: AppDetail): void {
 
   const algumInstalado = d.fontes.some((f) => f.instalado);
   const fonteInstalada = d.fontes.find((f) => f.instalado);
-  const fontePadrao = algumInstalado ? fonteInstalada?.fonte ?? d.fontes[0]?.fonte ?? "" : d.fontes.find((f) => f.disponivel)?.fonte ?? d.fontes[0]?.fonte ?? "";
+  // §5: só fontes conferidas entram no seletor; estados de diagnóstico ficam separados
+  const fontesOfertaveis = d.fontes.filter((f) => f.disponivel && !f.instalado);
+  const algumIndeterminado = d.fontes.some((f) => f.indeterminado);
+  const fontePadrao = algumInstalado ? fonteInstalada?.fonte ?? "" : fontesOfertaveis[0]?.fonte ?? "";
+
+  // mensagem quando não há fonte instalável verificada (casos F e G)
+  const semOpcoes = !algumInstalado && fontesOfertaveis.length === 0;
+  const mensagemSemFonte = semOpcoes
+    ? `
+      <p class="field__status" id="app-fonte-status">${
+        algumIndeterminado
+          ? "Não foi possível verificar as fontes agora (falha temporária) — recarregue os detalhes para tentar novamente."
+          : "Não encontrado em nenhuma fonte compatível com este sistema."
+      }</p>`
+    : "";
 
   card.innerHTML = `
     <div class="app-detalhe__icone" aria-hidden="true">${icone}</div>
@@ -122,18 +138,19 @@ function renderDetail(d: AppDetail): void {
 
       <ul class="kv-lista app-detalhe__fontes-lista">${fontesMeta}</ul>
 
-      ${d.fontes.length > 1 ? `
+      ${fontesOfertaveis.length > 1 ? `
       <div class="app-detalhe__fontes fonte-dropdown-wrapper">
         <button type="button" class="btn btn--primary fonte-dropdown-btn" id="fonte-dropdown-btn">
           <span id="fonte-dropdown-label">${fontePadrao ? fonteLabel(fontePadrao) : "Nativo"}</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
         </button>
         <div class="fonte-dropdown-menu" id="fonte-dropdown-menu" hidden>
-          ${d.fontes.map((f) => `<button type="button" class="fonte-dropdown-menu__item" data-fonte="${esc(f.fonte)}">${esc(fonteLabel(f.fonte))}${f.disponivel ? "" : " — indisponível"}</button>`).join("")}
+          ${fontesOfertaveis.map((f) => `<button type="button" class="fonte-dropdown-menu__item" data-fonte="${esc(f.fonte)}">${esc(fonteLabel(f.fonte))}</button>`).join("")}
         </div>
         <p class="field__status app-fonte-status" id="app-fonte-status">&nbsp;</p>
       </div>
       ` : ""}
+      ${mensagemSemFonte}
 
       <div class="app-detalhe__acoes">
         <button class="btn btn--primary" id="btn-app-instalar" type="button">Instalar</button>
@@ -190,9 +207,13 @@ function atualizarEstadoEntrada(): void {
   const btnAbrir = document.querySelector<HTMLButtonElement>("#btn-app-abrir");
 
   const algumInstalado = detalheAtual ? detalheAtual.fontes.some((x) => x.instalado) : false;
+  const semOpcoes = detalheAtual
+    ? !algumInstalado &&
+      detalheAtual.fontes.filter((x) => x.disponivel && !x.instalado).length === 0
+    : false;
 
   if (dropdownWrapper) dropdownWrapper.style.display = algumInstalado ? "none" : "inline-block";
-  if (btnInstalar) btnInstalar.style.display = algumInstalado ? "none" : "inline-flex";
+  if (btnInstalar) btnInstalar.style.display = algumInstalado || semOpcoes ? "none" : "inline-flex";
 
   if (status) {
     status.textContent = f
@@ -360,9 +381,12 @@ function abrirModalCompat(): void {
     document.getElementById("modal-scrim")?.addEventListener("click", ocultarModalCompat);
     // controles de download usam delegação de eventos
     document.getElementById("modal-progresso")?.addEventListener("click", aoClicarProgresso);
+    // remoção de ferramentas de compat do Steam (delegação no contêiner da lista)
+    document.getElementById("modal-protons-lista")?.addEventListener("click", aoClicarProtons);
     document.getElementById("btn-limpar-hist")?.addEventListener("click", () => limparHistorico());
   }
-  // preenche imediatamente a partir do cache em disco
+  // lista de ferramentas do Steam (estado real, sem cache) + cache de forks
+  atualizarProtonsSteam();
   invoke<ForkList & { versoes?: Record<string, string[]> }>("cache_compat_forks")
     .then((dados) => {
       forksCacheVersoes = dados.versoes ?? {};
@@ -661,44 +685,6 @@ function statusCompat(msg: string): void {
     el.hidden = false;
     el.textContent = msg;
   }
-}
-
-function instalarWine(): void {
-  const sel = document.getElementById("wine-fork") as HTMLSelectElement | null;
-  if (!sel) return;
-  if (wineEmModoRemocao) {
-    if (!window.confirm(`Remover ${sel.value}? desinstala a variante pelo gerenciador de pacotes`)) {
-      return;
-    }
-    statusCompat(`Removendo Wine (${sel.value})... — autorize no pkexec`);
-    invoke<string>("remover_wine_compat", { pkg: sel.value })
-      .then((msg) => {
-        statusCompat(msg ?? "Removido");
-        carregarForks();
-      })
-      .catch((e) => statusCompat(`Erro: ${String(e)}`));
-    return;
-  }
-  statusCompat("Instalando Wine (pacote " + sel.value + ")... — autorize no pkexec");
-  invoke<string>("instalar_wine", { pkg: sel.value })
-    .then(() => {
-      statusCompat("Instalando em segundo plano — pode fechar a janela com segurança");
-      atualizarProgresso();
-    })
-    .catch((e) => statusCompat(`Erro: ${String(e)}`));
-}
-
-function instalarProton(): void {
-  const fork = document.getElementById("proton-fork") as HTMLSelectElement | null;
-  const versao = document.getElementById("proton-versao") as HTMLSelectElement | null;
-  if (!fork || !versao) return;
-  statusCompat(`Baixando ${fork.value} ${versao.value}... (poderá demorar)`);
-  invoke<string>("instalar_proton_versao", { fork: fork.value, versao: versao.value })
-    .then(() => {
-      statusCompat("Baixando em segundo plano — pode fechar a janela com segurança");
-      atualizarProgresso();
-    })
-    .catch((e) => statusCompat(`Erro: ${String(e)}`));
 }
 
 // ferramentas instaladas do Steam são listadas na aba Apps (§5.1);

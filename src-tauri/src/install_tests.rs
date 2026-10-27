@@ -1,36 +1,82 @@
-use crate::system::install::{detail, forks_proton, forks_wine, listar_com_version, versao_remote_info, versoes_proton};
-use crate::system::pkgmgr::{PkgMgr, PkgOp};
+use crate::system::appinfo::REGISTRY;
+use crate::system::install::{detail, flatpak_remotos_de, forks_proton, forks_wine, versao_remote_info, versoes_proton};
+use crate::system::pkgmgr::{Consulta, PkgMgr};
 
 #[test]
 fn parser_versao_remote_info() {
     let saida = "Installation: io.itch.itch\n        Version: 25.7.1\n        Hash: abc";
     assert_eq!(versao_remote_info(saida).as_deref(), Some("25.7.1"));
+    // saída localizada (PT-BR)
+    assert_eq!(versao_remote_info("            Versão: 1.22.2\n").as_deref(), Some("1.22.2"));
     assert_eq!(versao_remote_info("Version:\n"), None);
     assert_eq!(versao_remote_info("não tem versão"), None);
 }
 
+/// remotos flatpak respeitam exatamente o que o sistema declara;
+/// flatpak ausente ou sem remotos = lista vazia (flathub não é presumido)
 #[test]
-fn parser_lista_com_version() {
-    let saida = "io.itch.itch\t25.7.1\ncom.usebottles.bottles\t51.24\n";
-    let v = listar_com_version(saida);
-    assert_eq!(v.len(), 2);
-    assert_eq!(v[0], ("io.itch.itch".to_string(), "25.7.1".to_string()));
-    assert_eq!(v[1].0, "com.usebottles.bottles");
-    // sem coluna de versão → string vazia, id preservado
-    assert_eq!(listar_com_version("solo")[0].0, "solo");
+fn parser_flatpak_remotos() {
+    let com = Some("flathub\nfedora\n".to_string());
+    assert_eq!(
+        flatpak_remotos_de(&com),
+        vec!["flathub".to_string(), "fedora".to_string()]
+    );
+    let vazio = Some("\n".to_string());
+    assert!(flatpak_remotos_de(&vazio).is_empty(), "remotos vazios");
+    // flatpak não respondeu: lista vazia, não demostra flathub
+    assert!(flatpak_remotos_de(&None).is_empty());
 }
 
+/// o catálogo nunca oferece o mesmo pacote universalmente: wine-cachyos é
+/// candidato somente na família Arch (§8 — não oferecer pacote exclusivo doutra distro)
 #[test]
-fn pkgmgr_compatibilidade() {
-    assert!(PkgMgr::Pacman.compatível().is_ok());
-    assert!(PkgMgr::Apt.compatível().is_ok());
-    assert!(PkgMgr::Dnf.compatível().is_ok());
-    assert!(PkgMgr::Nenhum.compatível().is_err());
+fn catalogo_mapeamento_por_familia() {
+    let familia_falsa = Some("Debian");
+    for a in REGISTRY {
+        let na_falsa: Vec<&str> = a.pacotes_aptos(familia_falsa).collect();
+        assert!(
+            !na_falsa.contains(&"wine-cachyos"),
+            "wine-cachyos não pode ser candidato em {} (chave {})",
+            familia_falsa.unwrap(),
+            a.id
+        );
+    }
+    let wine = REGISTRY.iter().find(|a| a.id == "wine").unwrap();
+    assert!(
+        wine.pacotes_aptos(Some("Arch")).any(|p| p == "wine-cachyos"),
+        "wine-cachyos precisa continuar candidato na família Arch"
+    );
+    // pacote "todas as famílias" aparece em qualquer família
+    assert!(
+        wine.pacotes_aptos(Some("Alpine")).any(|p| p == "wine"),
+        "wine deve continuar candidato em famílias genéricas"
+    );
 }
 
+/// snap só entra na fonte quando o catálogo tem identificador verificado
 #[test]
-fn pkgmgr_op_distintos() {
-    assert_ne!(PkgOp::Instalar, PkgOp::Remover);
+fn catalogo_snap_verificado() {
+    for a in REGISTRY {
+        if let Some(s) = a.snap {
+            assert!(!s.is_empty());
+            // steam e retroarch são os snaps confirmados na Snap Store (api oficial)
+            assert!(["steam", "retroarch"].contains(&s), "snap não conferido: {}", s);
+        }
+    }
+    let steam = REGISTRY.iter().find(|a| a.id == "steam").unwrap();
+    assert_eq!(steam.snap, Some("steam"));
+}
+
+/// estados da consulta: não confundir ausência com falha de consulta
+#[test]
+fn consulta_estados() {
+    let ok = Consulta::Disponivel("1.2".to_string());
+    assert_eq!(ok.versao(), Some("1.2"));
+    assert_eq!(Consulta::Ausente.versao(), None);
+    assert_eq!(
+        Consulta::Indeterminado("sem rede".to_string()).versao(),
+        None
+    );
 }
 
 /// a fonte nativa responde de acordo com a família da máquina de execução:
@@ -116,10 +162,10 @@ fn catalogos_usam_estado_centralizado() {
         );
         if e.estado != "instalado" {
             assert!(
-                e.versao.is_none(),
+                e.version.is_none(),
                 "versão preenchida sem instalação para {}: {:?}",
                 e.id,
-                e.versao
+                e.version
             );
         }
     }

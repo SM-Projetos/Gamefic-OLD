@@ -322,11 +322,14 @@ pub(crate) fn estado_instalacao(id: &str) -> EstadoReal {
         if let Some(fid) = i.flatpak {
             match flatpak_ids {
                 None => {
-                    if i.nativos.iter().any(|p| super::pkgmgr::instalado(p).is_some()) {
+                    if i.nativos.iter().any(|p| super::pkgmgr::instalado(p.pkg).is_some()) {
+                        let familia = super::os::detect_distro().and_then(|d| d.family);
                         return EstadoReal {
                             estado: "instalado".into(),
                             formato: Some("nativo".into()),
-                            versao: i.nativos.iter().find_map(|p| super::pkgmgr::instalado(p)),
+                            versao: i
+                                .pacotes_aptos(familia.as_deref())
+                                .find_map(|p| super::pkgmgr::instalado(p)),
                         };
                     }
                     // flatpak presente como única fonte conhecida mas consulta
@@ -347,7 +350,7 @@ pub(crate) fn estado_instalacao(id: &str) -> EstadoReal {
                 }
             }
         }
-        for pkg in i.nativos {
+        for pkg in i.pacotes_aptos(super::os::detect_distro().and_then(|d| d.family).as_deref()) {
             if let Some(v) = super::pkgmgr::instalado(pkg) {
                 return EstadoReal {
                     estado: "instalado".into(),

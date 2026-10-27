@@ -17,6 +17,8 @@ pub struct FonteInfo {
     pub versao_repo: Option<String>,
     /// motivo da indisponibilidade, quando aplicável
     pub motivo: Option<String>,
+    /// consulta não concluída (ex.: falha de rede): não é prova de ausência
+    pub indeterminado: bool,
 }
 
 #[derive(Debug, Clone, Serialize)]
@@ -73,12 +75,19 @@ fn rodar(prog: &str, args: &[&str]) -> Option<String> {
         .map(|o| String::from_utf8_lossy(&o.stdout).trim().to_string())
 }
 
-/// extrai a linha "Version: x" de `flatpak remote-info`
+/// executou e devolve o Output bruto (código de saída incluído), p/ distinguir
+/// "programa não existe" de "programa respondeu com erro"
+fn saida(prog: &str, args: &[&str]) -> Option<std::process::Output> {
+    Command::new(prog).args(args).output().ok()
+}
+
+/// extrai a linha "Version: x" / "Versão: x" (i18n) de `flatpak remote-info`
 pub(crate) fn versao_remote_info(saida: &str) -> Option<String> {
     saida.lines().find_map(|l| {
         let l = l.trim();
-        if l.starts_with("Version:") {
-            let v = l["Version:".len()..].trim();
+        if l.starts_with("Version:") || l.starts_with("Versão:") {
+            let prefixo = if l.starts_with("Versão:") { "Versão:" } else { "Version:" };
+            let v = l[prefixo.len()..].trim();
             if v.is_empty() { None } else { Some(v.to_string()) }
         } else {
             None
@@ -86,11 +95,67 @@ pub(crate) fn versao_remote_info(saida: &str) -> Option<String> {
     })
 }
 
-/// versão disponível no flathub para um escopo; falha se flatpak ausente,
-/// flathub não configurado ou app indisponível (a chamada distingue o motivo)
-fn flatpak_versao_flathub(id: &str, escopo: &str) -> Option<String> {
-    rodar("flatpak", &["remote-info", escopo, "flathub", id])
+/// versão do app-id em um remoto e escopo; None quando indisponível
+fn flatpak_versao_remoto(id: &str, escopo: &str, remoto: &str) -> Option<String> {
+    rodar("flatpak", &["remote-info", escopo, remoto, id])
         .and_then(|s| versao_remote_info(&s))
+}
+
+/// remotos flatpak efetivamente configurados no escopo (não presume flathub)
+fn flatpak_remotos() -> Vec<String> {
+    flatpak_remotos_de(&rodar(
+        "flatpak",
+        &["remotes", "--system", "--user", "--columns=name"],
+    ))
+}
+
+/// parser pura, testável: nomes de remotos a partir das colunas
+pub(crate) fn flatpak_remotos_de(saida: &Option<String>) -> Vec<String> {
+    match saida {
+        Some(s) => s
+            .lines()
+            .map(|l| l.trim().to_string())
+            .filter(|l| !l.is_empty())
+            .collect(),
+        None => Vec::new(),
+    }
+}
+
+/// busca a versão do app-id nos remotos realmente configurados:
+/// - `Ok(Some(v))` — disponível (confirmado por resposta do remoto)
+/// - `Ok(None)`    — todos os remotos responderam e o app não está lá
+/// - `Err(reason)` — consulta não concluída (rede/repositório): não é prova de ausência
+fn flatpak_versao_qualquer_remoto(id: &str) -> Result<Option<String>, String> {
+    let remotos = flatpak_remotos();
+    for r in &remotos {
+        for escopo in ["--system", "--user"] {
+            match saida("flatpak", &["remote-info", escopo, r, id]) {
+                Some(o) if o.status.success() => {
+                    let texto = String::from_utf8_lossy(&o.stdout).to_string();
+                    if let Some(v) = versao_remote_info(&texto) {
+                        return Ok(Some(v));
+                    }
+                }
+                Some(o) => {
+                    let e = String::from_utf8_lossy(&o.stderr).to_lowercase();
+                    // resposta definitiva de ausência: app ou remoto ausente
+                    // no escopo consultado (ex.: flathub só no sistema)
+                    if e.contains("no app id")
+                        || e.contains("not found")
+                        || e.contains("não localizado")
+                    {
+                    } else {
+                        return Err(format!(
+                            "flatpak remote-info falhou em {r}: {}",
+                            e.trim()
+                        ));
+                    }
+                }
+                None => return Err("flatpak não respondeu".to_string()),
+            }
+        }
+    }
+    Ok(None)
 }
 
 /// extrai (app-id, versão) ao gerar listas com `--columns=application,version`
@@ -125,31 +190,86 @@ fn flatpaks_instalados() -> Vec<String> {
 }
 
 pub fn detail(id: &str) -> Option<AppDetail> {
+    if let Some(d) = cache_ler(id) {
+        return Some(d);
+    }
+    let d = detail_fresco(id)?;
+    cache_salvar(id, &d);
+    Some(d)
+}
+
+// ---------- cache de detalhes (TTL curto, invalidado pelas ações) ----------
+
+const CACHE_TTL: std::time::Duration = std::time::Duration::from_secs(120);
+
+fn cache_estado() -> &'static std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, AppDetail)>> {
+    static M: std::sync::OnceLock<
+        std::sync::Mutex<std::collections::HashMap<String, (std::time::Instant, AppDetail)>>,
+    > = std::sync::OnceLock::new();
+    M.get_or_init(Default::default)
+}
+
+fn cache_ler(id: &str) -> Option<AppDetail> {
+    let l = cache_estado().lock().expect("mutex do cache de detalhes");
+    let (t, d) = l.get(id)?;
+    if t.elapsed() < CACHE_TTL {
+        Some(d.clone())
+    } else {
+        None
+    }
+}
+
+fn cache_salvar(id: &str, d: &AppDetail) {
+    let mut l = cache_estado().lock().expect("mutex do cache de detalhes");
+    l.insert(id.to_string(), (std::time::Instant::now(), d.clone()));
+}
+
+pub fn cache_invalidate(id: &str) {
+    cache_estado().lock().expect("mutex do cache de detalhes").remove(id);
+}
+
+/// consulta real de fontes (não cacheada)
+fn detail_fresco(id: &str) -> Option<AppDetail> {
     let info = achado(id)?;
     let tem_flatpak_cmd = rodar("flatpak", &["--version"]).is_some();
     let sistema = flatpaks_escopo("--system");
     let usuario = flatpaks_escopo("--user");
+    let familia = super::os::detect_distro().and_then(|d| d.family);
+    let mgr = super::pkgmgr::atual();
 
     let mut fontes = Vec::new();
-    for pkg in info.nativos {
+    for pkg in info.pacotes_aptos(familia.as_deref()) {
         let na_repo = super::pkgmgr::na_repo(pkg);
         let local = super::pkgmgr::instalado(pkg);
-        let motivo = if local.is_none() && na_repo.is_none() {
-            match super::pkgmgr::atual() {
-                super::pkgmgr::PkgMgr::Nenhum =>
-                    Some("esta distribuição não tem fonte nativa compatível".to_string()),
-                _ => Some("pacote não está nos repositórios habilitados".to_string()),
+        let (disponivel_repo, versao_repo, indet_repo) = match &na_repo {
+            super::pkgmgr::Consulta::Ausente => (false, None, false),
+            super::pkgmgr::Consulta::Disponivel(v) => (true, Some(v.clone()), false),
+            super::pkgmgr::Consulta::Indeterminado(_) => (false, None, true),
+        };
+        let motivo = if local.is_none() {
+            match (&na_repo, mgr) {
+                (super::pkgmgr::Consulta::Indeterminado(m), _) => {
+                    Some(format!("não foi possível verificar agora: {m}"))
+                }
+                (_, super::pkgmgr::PkgMgr::Nenhum) => {
+                    Some("esta distribuição não tem fonte nativa compatível".to_string())
+                }
+                (super::pkgmgr::Consulta::Ausente, _) => {
+                    Some("pacote não está nos repositórios habilitados".to_string())
+                }
+                _ => None,
             }
         } else {
             None
         };
         fontes.push(FonteInfo {
             fonte: format!("nativo:{pkg}"),
-            disponivel: local.is_some() || na_repo.is_some(),
+            disponivel: local.is_some() || disponivel_repo,
             instalado: local.is_some(),
-            versao: local,
-            versao_repo: na_repo,
+            versao: local.clone(),
+            versao_repo,
             motivo,
+            indeterminado: indet_repo && local.is_none(),
         });
     }
     if let Some(fid) = info.flatpak {
@@ -161,6 +281,7 @@ pub fn detail(id: &str) -> Option<AppDetail> {
                 versao: None,
                 versao_repo: None,
                 motivo: Some("flatpak não está instalado no sistema".to_string()),
+                indeterminado: false,
             });
         } else {
             let no_sistema = sistema.iter().find(|(i, _)| i == fid);
@@ -172,45 +293,85 @@ pub fn detail(id: &str) -> Option<AppDetail> {
                     disponivel: true,
                     instalado: true,
                     versao: Some(versao.clone()),
-                    versao_repo: flatpak_versao_flathub(fid, "--system")
-                        .or_else(|| flatpak_versao_flathub(fid, "--user")),
+                    versao_repo: flatpak_versao_qualquer_remoto(fid).ok().flatten(),
                     motivo: None,
-                });
-            } else if let Some(repo) = flatpak_versao_flathub(fid, "--system")
-                .or_else(|| flatpak_versao_flathub(fid, "--user"))
-            {
-                fontes.push(FonteInfo {
-                    fonte: "flatpak".to_string(),
-                    disponivel: true,
-                    instalado: false,
-                    versao: None,
-                    versao_repo: Some(repo),
-                    motivo: None,
+                    indeterminado: false,
                 });
             } else {
-                fontes.push(FonteInfo {
-                    fonte: "flatpak".to_string(),
-                    disponivel: false,
-                    instalado: false,
-                    versao: None,
-                    versao_repo: None,
-                    motivo: Some("não está disponível no Flathub configurado do sistema".to_string()),
-                });
+                // não instalado nos escopos: disponibilidade exige confirmação
+                // do remoto; falha de consulta ≠ ausência (§3/§4.2)
+                let remotos = flatpak_remotos();
+                let disponivel = flatpak_versao_qualquer_remoto(fid);
+                match disponivel {
+                    Ok(Some(repo)) => {
+                        fontes.push(FonteInfo {
+                            fonte: "flatpak".to_string(),
+                            disponivel: true,
+                            instalado: false,
+                            versao: None,
+                            versao_repo: Some(repo),
+                            motivo: None,
+                            indeterminado: false,
+                        });
+                    }
+                    Ok(None) => {
+                        fontes.push(FonteInfo {
+                            fonte: "flatpak".to_string(),
+                            disponivel: false,
+                            instalado: false,
+                            versao: None,
+                            versao_repo: None,
+                            motivo: if remotos.is_empty() {
+                                Some("flatpak está instalado, mas sem remotos configurados".to_string())
+                            } else {
+                                Some(format!(
+                                    "o identificador {} não está disponível nos remotos configurados ({})",
+                                    fid,
+                                    remotos.join(", ")
+                                ))
+                            },
+                            indeterminado: false,
+                        });
+                    }
+                    Err(m) => {
+                        fontes.push(FonteInfo {
+                            fonte: "flatpak".to_string(),
+                            disponivel: false,
+                            instalado: false,
+                            versao: None,
+                            versao_repo: None,
+                            motivo: Some(format!("não foi possível verificar agora: {m}")),
+                            // falha temporária: permite nova tentativa (§5-G)
+                            indeterminado: true,
+                        });
+                    }
+                }
             }
 
             if let Some((_, versao)) = no_usuario {
                 if no_sistema.is_none() {
+                    let remotos = flatpak_remotos();
+                    let remoto = remotos.first().map(String::as_str).unwrap_or("flathub");
                     fontes.push(FonteInfo {
                         fonte: "flatpak-user".to_string(),
                         disponivel: true,
                         instalado: true,
                         versao: Some(versao.clone()),
-                        versao_repo: flatpak_versao_flathub(fid, "--user"),
+                        versao_repo: flatpak_versao_remoto(
+                            fid,
+                            "--user",
+                            remoto,
+                        ),
                         motivo: None,
+                        indeterminado: false,
                     });
                 }
             }
         }
+    }
+    // Snap Store como fonte distinta: só aparece se o snapd responder
+    if let Some(snome) = info.snap {
+        fontes.push(fonte_snap(snome, mgr));
     }
 
     Some(AppDetail {
@@ -225,6 +386,61 @@ pub fn detail(id: &str) -> Option<AppDetail> {
         fontes,
     })
 }
+
+/// consulta a Snap Store por `snap info` — sem snapd funcional, a fonte não
+/// é ofertada (não há como instalar nem confirmar disponibilidade)
+fn fonte_snap(snome: &str, mgr: super::pkgmgr::PkgMgr) -> FonteInfo {
+    use super::pkgmgr::PkgMgr;
+    let sem_snapd = |motivo: &str| FonteInfo {
+        fonte: format!("snap:{snome}"),
+        disponivel: false,
+        instalado: false,
+        versao: None,
+        versao_repo: None,
+        motivo: Some(motivo.to_string()),
+        indeterminado: false,
+    };
+    if mgr == PkgMgr::Nenhum {
+        return sem_snapd(
+            "snapd precisa de um sistema com suporte a snap — fonte não ofertada aqui",
+        );
+    }
+    let Some(o) = saida("snap", &["version"]) else {
+        return sem_snapd("snap não está instalado no sistema");
+    };
+    let ver = String::from_utf8_lossy(&o.stdout).to_lowercase();
+    // `snapd unavailable` na tabela do snap version = serviço não em execução
+    if !o.status.success() || ver.contains("unavailable") || !ver.contains("snapd") {
+        return sem_snapd(
+            "snap instalado, mas o serviço snapd não está em execução — fonte não ofertada",
+        );
+    }
+    match rodar("snap", &["info", snome]) {
+        Some(sinfo) => {
+            let instalado = sinfo.contains("tracking:");
+            FonteInfo {
+                fonte: format!("snap:{snome}"),
+                disponivel: true,
+                instalado,
+                versao: None,
+                versao_repo: None,
+                motivo: None,
+                indeterminado: false,
+            }
+        }
+        // consulta à Snap Store não concluída: não é provação de ausência
+        None => FonteInfo {
+            fonte: format!("snap:{snome}"),
+            disponivel: false,
+            instalado: false,
+            versao: None,
+            versao_repo: None,
+            motivo: Some("não foi possível consultar a Snap Store agora (falha temporária)".to_string()),
+            indeterminado: true,
+        },
+    }
+}
+
 
 // ---------- abrir launcher instalado ----------
 
@@ -249,7 +465,7 @@ pub fn abrir_launcher(id: &str) -> Result<String, String> {
             return Ok("Aplicativo iniciado".to_string());
         }
     }
-    for pkg in info.nativos {
+    for pkg in info.pacotes_aptos(super::os::detect_distro().and_then(|d| d.family).as_deref()) {
         if super::pkgmgr::instalado(pkg).is_some() {
             Command::new(pkg)
                 .spawn()
@@ -286,6 +502,8 @@ impl std::fmt::Display for InstalarError {
 
 pub fn acao_app(id: &str, acao: &str, fonte: &str) -> Result<String, InstalarError> {
     let info = achado(id).ok_or(InstalarError::Fonte)?;
+    // qualquer ação muda o estado real: o cache de detalhes morre aqui
+    cache_invalidate(id);
 
     let pkgmgr_op = |op: super::pkgmgr::PkgOp, pkg: &str| -> Result<String, InstalarError> {
         // revalida a condição antes de executar: vigiar compatibilidade,
@@ -304,9 +522,14 @@ pub fn acao_app(id: &str, acao: &str, fonte: &str) -> Result<String, InstalarErr
 
     match fonte {
         f if f.starts_with("nativo:") => {
-            // valida que o pacote é do catálogo, nunca do frontend
+            // valida que o pacote é do catálogo [apto à família] e nunca do frontend
+            let familia = super::os::detect_distro().and_then(|d| d.family);
             let pkg = f.strip_prefix("nativo:").ok_or(InstalarError::Fonte)?;
-            if !info.nativos.contains(&pkg) {
+            if !info.nativos.iter().any(|p| p.pkg == pkg) {
+                return Err(InstalarError::Fonte);
+            }
+            let apto = info.pacotes_aptos(familia.as_deref()).any(|p| p == pkg);
+            if !apto {
                 return Err(InstalarError::Fonte);
             }
             let op = match acao {
@@ -342,19 +565,57 @@ pub fn acao_app(id: &str, acao: &str, fonte: &str) -> Result<String, InstalarErr
                 ));
             }
             let out = match acao {
-                "instalar" | "atualizar" => Command::new("flatpak")
-                    .args([
-                        "install",
-                        escopo,
-                        "--noninteractive",
-                        "-y",
-                        "flathub",
-                        fid,
-                    ])
-                    .output()
-                    .map_err(|e| InstalarError::Execucao(e.to_string()))?,
+                "instalar" | "atualizar" => {
+                    // tenta os remotos realmente configurados, um a um —
+                    // nenhum remoto configurado é erro honesto (não flathub fixo)
+                    let remotos = flatpak_remotos();
+                    if remotos.is_empty() {
+                        return Err(InstalarError::Falha(
+                            "flatpak não tem remotos configurados para instalar".into(),
+                        ));
+                    }
+                    let mut ultimo = None;
+                    for r in &remotos {
+                        let o = Command::new("flatpak")
+                            .args(["install", escopo, "--noninteractive", "-y", r, fid])
+                            .output()
+                            .map_err(|e| InstalarError::Execucao(e.to_string()))?;
+                        ultimo = Some(o);
+                        if ultimo.as_ref().map(|o| o.status.success()).unwrap_or(false) {
+                            break;
+                        }
+                    }
+                    ultimo.ok_or_else(|| InstalarError::Execucao(
+                        "nenhum remoto pôde ser consultado".into(),
+                    ))?
+                }
                 "remover" => Command::new("flatpak")
                     .args(["uninstall", escopo, "-y", "--noninteractive", fid])
+                    .output()
+                    .map_err(|e| InstalarError::Execucao(e.to_string()))?,
+                _ => return Err(InstalarError::Fonte),
+            };
+            if out.status.success() {
+                Ok("Operação concluída".to_string())
+            } else {
+                Err(InstalarError::Falha(
+                    String::from_utf8_lossy(&out.stderr).to_string(),
+                ))
+            }
+        }
+        f if f.starts_with("snap:") => {
+            let snome = f.strip_prefix("snap:").ok_or(InstalarError::Fonte)?;
+            // valida contra o catálogo e reconfirma a disponibilidade real
+            if info.snap != Some(snome) || !fonte_snap(snome, super::pkgmgr::atual()).disponivel {
+                return Err(InstalarError::NaoDisponivel);
+            }
+            let out = match acao {
+                "instalar" | "atualizar" => Command::new("pkexec")
+                    .args(["snap", "install", snome])
+                    .output()
+                    .map_err(|e| InstalarError::Execucao(e.to_string()))?,
+                "remover" => Command::new("pkexec")
+                    .args(["snap", "remove", snome])
                     .output()
                     .map_err(|e| InstalarError::Execucao(e.to_string()))?,
                 _ => return Err(InstalarError::Fonte),
@@ -485,8 +746,14 @@ pub fn remover_wine(pkg: &str) -> Result<String, InstalarError> {
 }
 
 pub fn forks_wine() -> Vec<InfoCompat> {
+    let familia = super::os::detect_distro().and_then(|d| d.family);
     let mut lista = Vec::new();
     for pkg in ["wine", "wine-staging", "wine-cachyos"] {
+        // wine-cachyos é um pacote específico do CachyOS/Arch: não ofertado
+        // em outras distribuições (§8 — não oferecer pacote exclusivo noutra)
+        if pkg == "wine-cachyos" && familia.as_deref() != Some("Arch") {
+            continue;
+        }
         let repo = super::pkgmgr::na_repo(pkg);
         lista.push(InfoCompat {
             chave: pkg.to_string(),
@@ -495,9 +762,9 @@ pub fn forks_wine() -> Vec<InfoCompat> {
                 "wine-staging" => "Wine-Staging".to_string(),
                 _ => "Wine CachyOS (otimizado)".to_string(),
             },
-            disponivel: repo.is_some(),
+            disponivel: repo.versao().is_some(),
             versao_atual: super::pkgmgr::instalado(pkg),
-            versao_repo: repo,
+            versao_repo: repo.versao().map(str::to_string),
         });
     }
     lista
@@ -550,7 +817,8 @@ pub fn instalar_wine(pkg: &str, id: &str, mut prog: Option<PassoProg>) -> Result
             ));
         }
         _ => {
-            if super::pkgmgr::na_repo(pkg).is_none() {
+            let na_dica = super::pkgmgr::na_repo(pkg);
+            if !matches!(na_dica, super::pkgmgr::Consulta::Disponivel(_)) {
                 return Err(InstalarError::NaoDisponivel);
             }
         }
