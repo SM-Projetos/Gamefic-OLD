@@ -237,6 +237,11 @@ function atualizarEstadoEntrada(): void {
   }
 }
 
+function revalidarEstados(): void {
+  // avisa a listagem geral para recarregar o estado real (§3.3)
+  window.dispatchEvent(new Event("estado-apps-mudou"));
+}
+
 function executarAcao(acao: "instalar" | "atualizar" | "remover"): void {
   const f = fonteEscolhida();
   const id = detalheAtual?.id;
@@ -247,9 +252,11 @@ function executarAcao(acao: "instalar" | "atualizar" | "remover"): void {
     .then((msg) => {
       status.textContent = msg;
       if (detalheAtual?.id) abrirApp(detalheAtual.id);
+      revalidarEstados();
     })
     .catch((e) => {
       status.textContent = `Erro: ${String(e)}`;
+      revalidarEstados();
     });
 }
 
@@ -317,14 +324,18 @@ const CONTROLES = {
 /// controles disponíveis pelo estado real da operação
 function acoesDoEstado(p: ProgressoItem): ("pausar" | "retomar" | "cancelar")[] {
   const ativos: ("pausar" | "retomar" | "cancelar")[] = [];
-  if (p.id.startsWith("proton:")) {
-    const partes = p.id.split(":");
-    const fork = partes[1] ?? "";
-    if (p.estado === "andamento" && (p.fase ?? "").startsWith("baixando")) {
+  const proton = p.id.startsWith("proton:");
+  const fork = p.id.split(":")[1] ?? "";
+  if (p.estado === "andamento") {
+    const fase = p.fase ?? "";
+    if (fase.startsWith("baixando")) {
       ativos.push("pausar", "cancelar");
-    } else if (p.estado === "pausado" && fork !== "") {
-      ativos.push("retomar", "cancelar");
+    } else if (fase.startsWith("aguardando")) {
+      // antes da transação/extrair: ainda é possível cancelar com segurança
+      ativos.push("cancelar");
     }
+  } else if (p.estado === "pausado" && proton && fork !== "") {
+    ativos.push("retomar", "cancelar");
   }
   return ativos;
 }
@@ -347,12 +358,9 @@ function abrirModalCompat(): void {
     document.getElementById("btn-instalar-proton")?.addEventListener("click", instalarProton);
     document.getElementById("btn-fechar-compat")?.addEventListener("click", fecharModalCompat);
     document.getElementById("modal-scrim")?.addEventListener("click", ocultarModalCompat);
-    // controles de download e remoção usam delegação de eventos
+    // controles de download usam delegação de eventos
     document.getElementById("modal-progresso")?.addEventListener("click", aoClicarProgresso);
-    document.getElementById("modal-protons-lista")?.addEventListener("click", aoClicarProtons);
-    document.getElementById("btn-limpar-erros")?.addEventListener("click", () => limparHistorico("erro"));
-    document.getElementById("btn-limpar-finalizados")?.addEventListener("click", () => limparHistorico("finalizados"));
-    atualizarProtonsSteam();
+    document.getElementById("btn-limpar-hist")?.addEventListener("click", () => limparHistorico());
   }
   // preenche imediatamente a partir do cache em disco
   invoke<ForkList & { versoes?: Record<string, string[]> }>("cache_compat_forks")
@@ -404,6 +412,21 @@ function pararPollProgresso(): void {
   }
 }
 
+/// operaões terminadas já sinalizadas para revalidação da aba Apps
+let terminalSinalizado = new Set<string>();
+
+function sinalizarTermino(lista: ProgressoItem[]): void {
+  for (const p of lista) {
+    if (
+      (p.estado === "concluido" || p.estado === "erro" || p.estado === "cancelado") &&
+      !terminalSinalizado.has(p.id)
+    ) {
+      terminalSinalizado.add(p.id);
+      revalidarEstados();
+    }
+  }
+}
+
 function renderProgresso(lista: ProgressoItem[]): void {
   const area = document.getElementById("modal-progresso");
   if (!area) return;
@@ -421,6 +444,7 @@ function renderProgresso(lista: ProgressoItem[]): void {
       const rotuloEstado: Record<string, string> = {
         andamento: pct !== null && p.pct !== null ? "Baixando" : "Em andamento",
         pausado: "Pausado",
+        cancelando: "Cancelando...",
         cancelado: "Cancelado",
         concluido: "Concluído",
         erro: "Erro",
@@ -454,25 +478,22 @@ function renderProgresso(lista: ProgressoItem[]): void {
     })
     .join("");
   atualizarBotoesHistorico(lista);
+  sinalizarTermino(lista);
 }
 
-/// mostra os botões de limpeza apenas quando existem operações finalizadas
+/// botão único Limpar: remove somente operações em estado terminal
+/// (concluído, falhou, cancelado); operações em andamento/pausadas ficam
 function atualizarBotoesHistorico(lista: ProgressoItem[]): void {
   const area = document.getElementById("modal-historico-botoes");
   if (!area) return;
-  const comErro = lista.some((p) => p.estado === "erro" || p.estado === "cancelado");
-  const finalizados = lista.some(
-    (p) => !["andamento", "pausado", "aguardando", "cancelando"].includes(p.estado),
+  const terminal = lista.some(
+    (p) => p.estado === "concluido" || p.estado === "erro" || p.estado === "cancelado",
   );
-  const btnErro = area.querySelector("#btn-limpar-erros") as HTMLButtonElement | null;
-  const btnFin = area.querySelector("#btn-limpar-finalizados") as HTMLButtonElement | null;
-  if (btnErro) btnErro.hidden = !comErro;
-  if (btnFin) btnFin.hidden = !finalizados;
-  area.hidden = !finalizados && !comErro;
+  area.hidden = !terminal;
 }
 
-function limparHistorico(modo: "erro" | "finalizados"): void {
-  invoke("limpar_historico_compat", { modo })
+function limparHistorico(): void {
+  invoke("limpar_historico_compat", { modo: "finalizados" })
     .then(() => atualizarProgresso())
     .catch(() => {});
 }
@@ -486,7 +507,9 @@ function aoClicarProgresso(ev: Event): void {
   if (acao === "pausar") {
     invoke("pausar_compat", { id }).catch(() => {});
   } else if (acao === "cancelar") {
-    invoke("cancelar_compat", { id }).catch(() => {});
+    invoke<string>("cancelar_compat", { id })
+      .catch((e) => statusCompat(String(e)))
+      .then(() => atualizarProgresso());
   } else if (acao === "retomar") {
     const fork = botao.getAttribute("data-fork") ?? "";
     const versao = botao.getAttribute("data-versao") ?? "";
@@ -572,7 +595,6 @@ function carregarVersoesWine(): void {
 }
 
 let wineEmModoRemocao = false;
-
 function atualizarInfoWine(): void {
   const sel = document.getElementById("wine-fork") as HTMLSelectElement | null;
   const info = document.getElementById("wine-info");
@@ -640,6 +662,47 @@ function statusCompat(msg: string): void {
     el.textContent = msg;
   }
 }
+
+function instalarWine(): void {
+  const sel = document.getElementById("wine-fork") as HTMLSelectElement | null;
+  if (!sel) return;
+  if (wineEmModoRemocao) {
+    if (!window.confirm(`Remover ${sel.value}? desinstala a variante pelo gerenciador de pacotes`)) {
+      return;
+    }
+    statusCompat(`Removendo Wine (${sel.value})... — autorize no pkexec`);
+    invoke<string>("remover_wine_compat", { pkg: sel.value })
+      .then((msg) => {
+        statusCompat(msg ?? "Removido");
+        carregarForks();
+      })
+      .catch((e) => statusCompat(`Erro: ${String(e)}`));
+    return;
+  }
+  statusCompat("Instalando Wine (pacote " + sel.value + ")... — autorize no pkexec");
+  invoke<string>("instalar_wine", { pkg: sel.value })
+    .then(() => {
+      statusCompat("Instalando em segundo plano — pode fechar a janela com segurança");
+      atualizarProgresso();
+    })
+    .catch((e) => statusCompat(`Erro: ${String(e)}`));
+}
+
+function instalarProton(): void {
+  const fork = document.getElementById("proton-fork") as HTMLSelectElement | null;
+  const versao = document.getElementById("proton-versao") as HTMLSelectElement | null;
+  if (!fork || !versao) return;
+  statusCompat(`Baixando ${fork.value} ${versao.value}... (poderá demorar)`);
+  invoke<string>("instalar_proton_versao", { fork: fork.value, versao: versao.value })
+    .then(() => {
+      statusCompat("Baixando em segundo plano — pode fechar a janela com segurança");
+      atualizarProgresso();
+    })
+    .catch((e) => statusCompat(`Erro: ${String(e)}`));
+}
+
+// ferramentas instaladas do Steam são listadas na aba Apps (§5.1);
+// o histórico do modal contém apenas operações iniciadas pelo Gamefic
 
 function instalarWine(): void {
   const sel = document.getElementById("wine-fork") as HTMLSelectElement | null;

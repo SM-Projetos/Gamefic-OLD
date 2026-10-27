@@ -63,6 +63,83 @@ fn detail_fontes_estrutura() {
     }
 }
 
+/// cancelamento antes da transação do gerenciador de pacotes: operação
+/// nem começa (§8.1/§8.2)
+#[test]
+fn instalar_wine_respeita_cancelamento_antecipado() {
+    use crate::system::install::{controle_de_teste, instalar_wine};
+    let id = "t-cancel-wine:wine";
+    controle_de_teste(id).store(2, std::sync::atomic::Ordering::SeqCst);
+    let r = instalar_wine("wine", id, None);
+    let msg = match r {
+        Err(e) => e.to_string(),
+        Ok(_) => panic!("instalação deveria ter sido cancelada"),
+    };
+    assert!(
+        msg.contains("cancelada pelo usuário") || msg.contains("Cancelado pelo usuário"),
+        "mensagem inesperada: {msg}"
+    );
+}
+
+/// arquivos temporários são exclusivos por operação (§8.4): duas versões
+/// do mesmo fork nunca compartilham o parcial
+#[test]
+fn caminho_tmp_isolado_por_operacao() {
+    use crate::system::install::caminho_tmp;
+    let a = caminho_tmp("ge", "proton:ge:GE-Proton10-4", "tar.gz");
+    let b = caminho_tmp("ge", "proton:ge:GE-Proton10-3", "tar.gz");
+    assert_ne!(a, b);
+    let c = caminho_tmp("ge", "proton:ge:GE-Proton10-3", "tar.xz");
+    assert_ne!(b, c);
+}
+
+/// estado de instalação nos catálogos usa a fonte central (§2): os campos
+/// são coerentes entre si em qualquer máquina de execução
+#[test]
+fn catalogos_usam_estado_centralizado() {
+    use crate::system::tools::{emuladores, launchers};
+    for e in launchers().into_iter().chain(emuladores()) {
+        assert!(
+            matches!(
+                e.estado.as_str(),
+                "instalado" | "nao_instalado" | "desconhecido"
+            ),
+            "estado inválido para {}: {}",
+            e.id,
+            e.estado
+        );
+        assert_eq!(
+            e.available,
+            e.estado == "instalado",
+            "available divergente do estado real para {}",
+            e.id
+        );
+        if e.estado != "instalado" {
+            assert!(
+                e.versao.is_none(),
+                "versão preenchida sem instalação para {}: {:?}",
+                e.id,
+                e.versao
+            );
+        }
+    }
+}
+
+/// aba de compatibilidade lista ferramentas instaladas (§5.1): Wine e os
+/// Protons detectados (custom e oficial) aparecem com estado instalado
+#[test]
+fn compatibilidade_lista_ferramentas_instaladas() {
+    use crate::system::tools::compatibility;
+    let lista = compatibility();
+    let wine = lista.iter().find(|e| e.id == "wine").expect("Wine cadastrado");
+    assert_eq!(wine.estado, if wine.available { "instalado" } else { "nao_instalado" });
+    for e in lista.iter().filter(|e| e.id.starts_with("proton:")) {
+        assert!(e.available, "proton listado precisa estar instalado: {}", e.id);
+        assert_eq!(e.estado, "instalado");
+        assert!(e.formato.is_some(), "formato não identificado para {}", e.id);
+    }
+}
+
 /// resolução real de assets: para cada fork no GitHub, o release mais recente
 /// precisa apontar para um tarball do mesmo repositório (sem URLs inventadas)
 #[test]

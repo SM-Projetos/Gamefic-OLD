@@ -2,6 +2,12 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), versionado por SemVer. Histórico completo de desenvolvimento nos commits `SNAPSHOT-xxxx` do `git log`.
 
+## [Não lançado]
+
+### Corrigido
+- Controle do ciclo de vida do monitoramento para ignorar chamadas duplicadas e invalidar trabalhadores antigos ao parar ou reiniciar a coleta.
+- Reinicialização do monitoramento sequenciada ao alterar o intervalo, evitando chamadas concorrentes de parada/início.
+
 ## [0.1.0] — versão inicial (2026-10-22)
 
 Primeira versão funcional do app: fundação visual, detecção real de sistema, monitoramento, histórico de eventos e análise de otimização.

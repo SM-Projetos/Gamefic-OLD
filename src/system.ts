@@ -74,6 +74,8 @@ export interface AppEntry {
   available: boolean;
   version?: string | null;
   icon?: string | null;
+  estado?: string | null; // "instalado" | "nao_instalado" | "desconhecido"
+  formato?: string | null;
 }
 
 export interface SystemSnapshot {
@@ -338,20 +340,28 @@ function renderTiles(entries: AppEntry[], gridId: string, emptyMsg: string): voi
     return;
   }
   entries.forEach((entry, i) => {
+    const estado = entry.estado ?? (entry.available ? "instalado" : "nao_instalado");
+    const rotuloEstado =
+      estado === "instalado"
+        ? `✔ Instalado${entry.formato ? ` · ${entry.formato}` : ""}`
+        : estado === "desconhecido"
+          ? "Verificação indisponível"
+          : "Não instalado";
     const tile = document.createElement("div");
-    tile.className = `tool-tile${entry.available ? "" : " tool-tile--off"}`;
+    tile.className = `tool-tile${estado === "instalado" ? "" : " tool-tile--off"}`;
     tile.dataset.appId = entry.id ?? "";
     const iconHtml = entry.icon
       ? `<span class="tool-tile__icon" aria-hidden="true"><img class="tool-tile__img" src="${esc(entry.icon)}" alt=""></span>`
       : `<span class="tool-tile__icon tool-tile__icon--purple" aria-hidden="true">${esc(inicial(entry.name, i))}</span>`;
-    const versionHtml = entry.version
-      ? ` <span class="tool-tile__version num">${esc(entry.version)}</span>`
-      : "";
+    const versionHtml =
+      estado === "instalado" && entry.version
+        ? ` <span class="tool-tile__version num">${esc(entry.version)}</span>`
+        : "";
     tile.innerHTML = `
       ${iconHtml}
       <span class="tool-tile__name">${esc(entry.name)}${versionHtml}</span>
-      <span class="tool-tile__status ${entry.available ? "" : "tool-tile__status--off"}">
-        ${entry.available ? "✔ Instalado" : "Não instalado"}
+      <span class="tool-tile__status ${estado === "instalado" ? "" : "tool-tile__status--off"}">
+        ${esc(rotuloEstado)}
       </span>
     `;
     grid.appendChild(tile);

@@ -156,10 +156,45 @@ fn pausar_compat(id: String) {
     system::install::pedir_pausar(&id);
 }
 
-/// cancela um download; não afeta operações em fase de extração
+/// cancela uma operação; só afeta o trabalho pertencente a ela (§8.4)
 #[tauri::command]
-fn cancelar_compat(id: String) {
+fn cancelar_compat(id: String) -> Result<String, String> {
+    // fase atual decide o que é possível com segurança
+    let (estado, fase) = {
+        let lista = system::install::progresso_listar();
+        lista
+            .iter()
+            .find(|p| p.id == id)
+            .map(|p| (p.estado.clone(), p.fase.clone()))
+            .unwrap_or_default()
+    };
+    if estado.is_empty() {
+        return Err("operação não encontrada".to_string());
+    }
+    // instalação já em transação do gerenciador de pacotes: não há como
+    // interromper com segurança; informar em vez de simular (§8.3)
+    if estado == "andamento" && fase.as_deref() == Some("instalando") {
+        return Err(
+            "a instalação já começou e o gerenciador de pacotes do sistema não pode ser interrompido com segurança; aguarde o término"
+                .to_string(),
+        );
+    }
+    if estado == "concluido" || estado == "erro" || estado == "cancelado" {
+        return Err("esta operação já terminou".to_string());
+    }
+    system::install::progresso_atualizar(&id, Some("Cancelando..."), None, Some("cancelando"));
     system::install::pedir_cancelar(&id);
+    // se a operação estava pausada (sem laço ativo), o cancelamento é
+    // imediato e concluído aqui
+    if estado == "pausado" {
+        system::install::progresso_atualizar(
+            &id,
+            Some("Cancelado pelo usuário"),
+            None,
+            Some("cancelado"),
+        );
+    }
+    Ok("cancelamento solicitado".to_string())
 }
 
 /// retoma um download pausado via HTTP Range; sem suporte a Range no
@@ -266,10 +301,12 @@ async fn instalar_wine(pkg: String) -> Result<String, String> {
     tauri::async_runtime::spawn(async move {
         let id_cb = id_bg.clone();
         let r = tauri::async_runtime::spawn_blocking(move || {
+            let id_prog = id_cb.clone();
             system::install::instalar_wine(
                 &pkg_bg,
+                &id_cb,
                 Some(&mut move |pct, desc| {
-                    system::install::progresso_atualizar(&id_cb, Some(desc), pct, None);
+                    system::install::progresso_atualizar(&id_prog, Some(desc), pct, None);
                 }),
             )
             .map_err(|e| e.to_string())
@@ -283,7 +320,15 @@ async fn instalar_wine(pkg: String) -> Result<String, String> {
                 Some("concluido"),
             ),
             Ok(Err(e)) => {
-                system::install::progresso_atualizar(&id_bg, Some(&e), None, Some("erro"))
+                // cancelamento antes da transação do gerenciador → cancelado
+                let estado = if e.contains("cancelada pelo usuário") {
+                    Some("cancelado")
+                } else {
+                    Some("erro")
+                };
+                let desc = e
+                    .replace("instalação cancelada pelo usuário", "Cancelado pelo usuário");
+                system::install::progresso_atualizar(&id_bg, Some(&desc), None, estado);
             }
             Err(_) => system::install::progresso_atualizar(
                 &id_bg,

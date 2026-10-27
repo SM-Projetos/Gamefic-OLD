@@ -102,6 +102,10 @@ pub struct AppEntry {
     pub available: bool,
     pub version: Option<String>,
     pub icon: Option<String>,
+    /// "instalado" | "nao_instalado" | "desconhecido" (§2.2)
+    pub estado: String,
+    /// formato de instalação identificado (Flatpak, nativo, binário, Steam)
+    pub formato: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

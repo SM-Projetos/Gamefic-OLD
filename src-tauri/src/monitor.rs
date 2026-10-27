@@ -1,5 +1,5 @@
 use std::collections::VecDeque;
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 
@@ -32,10 +32,17 @@ pub struct MetricSample {
 #[derive(Debug, Default)]
 pub struct MonitorInner {
     running: AtomicBool,
+    generation: AtomicU64,
+    lifecycle: Mutex<()>,
     history: Mutex<VecDeque<MetricSample>>,
 }
 
 pub type MonitorState = Arc<MonitorInner>;
+
+fn generation_is_active(state: &MonitorInner, generation: u64) -> bool {
+    state.running.load(Ordering::SeqCst)
+        && state.generation.load(Ordering::SeqCst) == generation
+}
 
 fn now_ms() -> u64 {
     std::time::SystemTime::now()
@@ -123,6 +130,20 @@ pub fn start_monitoring(
     interval_ms: u64,
 ) -> Result<(), String> {
     let interval = interval_ms.max(500);
+    let _lifecycle = state
+        .lifecycle
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
+
+    // Chamadas repetidas não devem iniciar outro trabalhador.
+    if state.running.load(Ordering::SeqCst) {
+        return Ok(());
+    }
+
+    let generation = state
+        .generation
+        .fetch_add(1, Ordering::SeqCst)
+        .wrapping_add(1);
     state.running.store(true, Ordering::SeqCst);
 
     let shared = Arc::clone(&state);
@@ -132,13 +153,23 @@ pub fn start_monitoring(
         .name("gamefic-monitor".to_string())
         .spawn(move || {
             loop {
-                if !shared.running.load(Ordering::SeqCst) {
+                if !generation_is_active(&shared, generation) {
                     break;
                 }
 
                 let sample = collect_sample();
 
                 {
+                    // Serializa a publicação da amostra com stop/start. Se esta
+                    // geração foi invalidada durante a coleta, descarta a amostra.
+                    let _lifecycle = shared
+                        .lifecycle
+                        .lock()
+                        .unwrap_or_else(|poisoned| poisoned.into_inner());
+                    if !generation_is_active(&shared, generation) {
+                        break;
+                    }
+
                     let mut history = shared
                         .history
                         .lock()
@@ -147,26 +178,36 @@ pub fn start_monitoring(
                     while history.len() > HISTORY_LIMIT {
                         history.pop_front();
                     }
+                    drop(history);
+                    let _ = app_handle.emit("metrics", sample);
                 }
 
-                let _ = app_handle.emit("metrics", sample);
-
                 let mut slept = 0u64;
-                while slept < interval && shared.running.load(Ordering::SeqCst) {
+                while slept < interval && generation_is_active(&shared, generation) {
                     let step = 200.min(interval - slept);
                     std::thread::sleep(Duration::from_millis(step));
                     slept += step;
                 }
             }
         })
-        .map_err(|e| format!("falha ao iniciar a coleta: {e}"))?;
+        .map_err(|e| {
+            state.running.store(false, Ordering::SeqCst);
+            state.generation.fetch_add(1, Ordering::SeqCst);
+            format!("falha ao iniciar a coleta: {e}")
+        })?;
 
     Ok(())
 }
 
 #[tauri::command]
 pub fn stop_monitoring(state: State<'_, MonitorState>) {
+    let _lifecycle = state
+        .lifecycle
+        .lock()
+        .unwrap_or_else(|poisoned| poisoned.into_inner());
     state.running.store(false, Ordering::SeqCst);
+    // Invalida qualquer trabalhador antigo, inclusive se um novo iniciar logo depois.
+    state.generation.fetch_add(1, Ordering::SeqCst);
 }
 
 #[tauri::command]
@@ -176,4 +217,34 @@ pub fn get_history(state: State<'_, MonitorState>) -> Vec<MetricSample> {
         .lock()
         .unwrap_or_else(|poisoned| poisoned.into_inner());
     history.iter().cloned().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{generation_is_active, MonitorInner};
+    use std::sync::atomic::Ordering;
+
+    #[test]
+    fn current_generation_is_active_while_running() {
+        let state = MonitorInner::default();
+        state.generation.store(7, Ordering::SeqCst);
+        state.running.store(true, Ordering::SeqCst);
+
+        assert!(generation_is_active(&state, 7));
+    }
+
+    #[test]
+    fn stopped_or_replaced_generation_is_inactive() {
+        let state = MonitorInner::default();
+        state.generation.store(7, Ordering::SeqCst);
+        state.running.store(true, Ordering::SeqCst);
+        assert!(generation_is_active(&state, 7));
+
+        state.generation.store(8, Ordering::SeqCst);
+        assert!(!generation_is_active(&state, 7));
+        assert!(generation_is_active(&state, 8));
+
+        state.running.store(false, Ordering::SeqCst);
+        assert!(!generation_is_active(&state, 8));
+    }
 }

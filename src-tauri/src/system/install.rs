@@ -1,8 +1,10 @@
 use serde::Serialize;
+use sha2::{Digest, Sha512};
 use std::fs;
 use std::path::PathBuf;
 use std::process::Command;
 
+use base64::engine::Engine;
 use super::appinfo::{AppInfo, REGISTRY};
 
 #[derive(Debug, Clone, Serialize)]
@@ -44,6 +46,20 @@ pub struct InfoCompat {
 
 fn achado(id: &str) -> Option<&'static AppInfo> {
     REGISTRY.iter().find(|a| a.id == id)
+}
+
+/// acesso do catálogo para outras unidades de detecção (tools.rs)
+pub(crate) fn achado_pub(id: &str) -> Option<&'static AppInfo> {
+    achado(id)
+}
+
+/// acesso p/ testes de cancelamento
+pub fn controle_de_teste(id: &str) -> Arc<std::sync::atomic::AtomicU8> {
+    controle_de(id)
+}
+
+pub(crate) fn flatpaks_escopo_pub(escopo: &str) -> Vec<(String, String)> {
+    flatpaks_escopo(escopo)
 }
 
 // ---------- pacotes e flatpak ----------
@@ -512,9 +528,18 @@ pub fn versoes_wine() -> Result<Vec<String>, InstalarError> {
     }
 }
 
-pub fn instalar_wine(pkg: &str, mut prog: Option<PassoProg>) -> Result<String, InstalarError> {
+pub fn instalar_wine(pkg: &str, id: &str, mut prog: Option<PassoProg>) -> Result<String, InstalarError> {
     if !["wine", "wine-staging", "wine-cachyos"].contains(&pkg) {
         return Err(InstalarError::Fonte);
+    }
+
+    // cancelamento pedido antes de qualquer consulta: operação nem começa
+    let controle = controle_de(id);
+    progresso_fase(id, "aguardando");
+    if controle.load(Ordering::SeqCst) == 2 {
+        return Err(InstalarError::Falha(
+            "instalação cancelada pelo usuário".to_string(),
+        ));
     }
 
     // variante incompatível com a distribuição a partir do gerenciador real
@@ -554,6 +579,18 @@ pub fn instalar_wine(pkg: &str, mut prog: Option<PassoProg>) -> Result<String, I
     if let Some(cb) = &mut prog {
         cb(None, "Consultando os repositórios...");
     }
+
+    // cancelamento pedido enquanto a consulta era feita
+    if controle.load(Ordering::SeqCst) == 2 {
+        return Err(InstalarError::Falha(
+            "instalação cancelada pelo usuário".to_string(),
+        ));
+    }
+
+    // a partir daqui o gerenciador de pacotes assume a transação, que não
+    // pode ser interrompida com segurança (§8.3): marca a fase para que os
+    // controles da interface reflitam que não há mais como cancelar
+    progresso_fase(id, "instalando");
     super::pkgmgr::instalar(pkg)
         .map(|_| "Wine instalado".to_string())
         .map_err(InstalarError::Falha)
@@ -808,6 +845,72 @@ fn releases_forgejo(url: &str) -> Result<Vec<(String, Option<String>)>, Instalar
     }
 }
 
+/// busca o checksum (.sha512sum) público de um release do GitHub e devolve o hex
+fn asset_sha512_github(repositorio: &str, tag: &str) -> Result<Option<String>, InstalarError> {
+    let url = format!("https://api.github.com/repos/{repositorio}/releases/tags/{tag}");
+    let texto = http_texto(&url, 4_000_000)?;
+    let json: serde_json::Value =
+        serde_json::from_str(&texto).map_err(|e| InstalarError::Execucao(e.to_string()))?;
+    let releases = json.as_array().ok_or(InstalarError::Execucao("resposta inesperada".to_string()))?;
+    for r in releases {
+        let assets = r["assets"].as_array();
+        let Some(assets) = assets else { continue };
+        for a in assets {
+            let nome = a["name"].as_str().unwrap_or_default().to_string();
+            if !nome.ends_with(".sha512sum") && !nome.ends_with(".sha256sum") {
+                continue;
+            }
+            let Some(content) = a["content"].as_str() else { continue };
+            let bytes = base64::engine::general_purpose::STANDARD
+                .decode(content.as_bytes())
+                .map_err(|e| InstalarError::Execucao(e.to_string()))?;
+            let texto_hash = String::from_utf8_lossy(&bytes);
+            let hex = texto_hash
+                .split_whitespace()
+                .next()
+                .unwrap_or_default()
+                .trim()
+                .to_string();
+            if hex.len() >= 64 && hex.chars().all(|c| c.is_ascii_hexdigit()) {
+                return Ok(Some(hex));
+            }
+        }
+    }
+    Ok(None)
+}
+
+/// hash sha512 hex do arquivo (para validação de integridade)
+fn sha512_do_arquivo(path: &PathBuf) -> Option<String> {
+    let data = std::fs::read(path).ok()?;
+    let mut hasher = Sha512::new();
+    hasher.update(&data);
+    let digest = hasher.finalize();
+    Some(digest.iter().map(|b| format!("{b:02x}")).collect())
+}
+
+/// resolve o hash esperado do release conforme a fonte:
+/// GitHub (via asset .sha512sum) ou Forgejo (via field digest da release)
+fn hash_esperado_para(f: &ForkProton, tag: &str) -> Option<String> {
+    match f.fonte {
+        FonteProton::Github => asset_sha512_github(f.repositorio, tag).ok().flatten(),
+        FonteProton::Forgejo => forgejo_digest(f, tag).ok().flatten(),
+        FonteProton::Steam => None,
+    }
+}
+
+/// digest (sha512) de um release no Forgejo (Gitea) pela tag
+fn forgejo_digest(f: &ForkProton, tag: &str) -> Result<Option<String>, InstalarError> {
+    let json = http_texto(&f.repositorio, 4_000_000)?;
+    let valor: serde_json::Value = serde_json::from_str(&json).map_err(|e| InstalarError::Execucao(e.to_string()))?;
+    if let Some(digest) = valor["digest"].as_str() {
+        let hex = digest.trim_start_matches("sha512:").to_string();
+        if hex.len() >= 128 {
+            return Ok(Some(hex));
+        }
+    }
+    Ok(None)
+}
+
 /// releases por fork: lista (tag, asset opcional)
 fn releases_fork(f: &ForkProton) -> Result<Vec<(String, Option<String>)>, InstalarError> {
     match f.fonte {
@@ -1010,6 +1113,17 @@ pub fn pedir_cancelar(id: &str) {
     descartar_estado_dl(id);
 }
 
+/// diretório temporário exclusivo da operação (§8.4): downloads de
+/// versões distintas do mesmo fork nunca compartilham arquivo
+pub(crate) fn caminho_tmp(fork: &str, id: &str, extensao: &str) -> PathBuf {
+    let sufixo: String = id
+        .chars()
+        .map(|c| if c.is_ascii_alphanumeric() { c } else { '_' })
+        .collect();
+    std::env::temp_dir().join(format!("gamefic-{}-{}.{extensao}", fork, sufixo))
+}
+
+
 /// atualiza o item de progresso com o andamento real do download
 fn progresso_dl(id: &str, feitos: u64, total: Option<u64>, vel: u64) {
     let mut l = PROGRESSO.lock().expect("mutex do progresso");
@@ -1116,7 +1230,7 @@ pub fn instalar_proton(
             };
 
             // download para /tmp, com relato de progresso
-            let tmp = std::env::temp_dir().join(format!("gamefic-{}.{}", fork, extensao));
+            let tmp = caminho_tmp(fork, id, extensao);
             let _ = fs::remove_file(&tmp);
             estados_dl()
                 .lock()
@@ -1288,6 +1402,28 @@ pub fn instalar_proton(
     drop(arquivo);
     descartar_estado_dl(id);
     progresso_fase(id, "instalando");
+
+    // valida o checksum publicado no release (quando existir); falha
+    // antes de extrair um arquivo corrompido (§7: validar arquivos baixados)
+    let hash_esperado = hash_esperado_para(f, &tag);
+    if let Some(hash) = &hash_esperado {
+        let hash_calculado = sha512_do_arquivo(&tmp);
+        let Some(hash_calc) = hash_calculado else {
+            let _ = fs::remove_file(&tmp);
+            return Err(InstalarError::Falha(
+                "falha ao calcular o checksum do arquivo baixado".to_string(),
+            ));
+        };
+        if &hash_calc != hash {
+            let _ = fs::remove_file(&tmp);
+            return Err(InstalarError::Falha(format!(
+                "falha na integridade: o download não corresponde ao checksum publicado ({tag}): {hash_calc} != {hash}"
+            )));
+        }
+        if let Some(cb) = &mut prog {
+            cb(Some(100), "Checksum verificado (integridade confirmada)");
+        }
+    }
 
     // valida o formato real do arquivo antes de extrair: evita tratar
     // uma página HTML de erro como se fosse um tarball do Proton
