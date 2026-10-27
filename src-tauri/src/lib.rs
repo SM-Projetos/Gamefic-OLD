@@ -144,10 +144,140 @@ fn progresso_compat() -> Vec<system::install::ProgressoItem> {
     system::install::progresso_listar()
 }
 
-/// remove itens concluídos da área de progresso (ao fechar a janela)
+/// removes itens com falha/cancelados do histórico
 #[tauri::command]
-fn limpar_progresso_compat() {
-    system::install::progresso_remover_concluidos();
+fn limpar_historico_compat(modo: String) {
+    system::install::progresso_limpar(&modo);
+}
+
+/// pausa um download em andamento (o laço no backend preserva o parcial)
+#[tauri::command]
+fn pausar_compat(id: String) {
+    system::install::pedir_pausar(&id);
+}
+
+/// cancela uma operação; só afeta o trabalho pertencente a ela (§8.4)
+#[tauri::command]
+fn cancelar_compat(id: String) -> Result<String, String> {
+    // fase atual decide o que é possível com segurança
+    let (estado, fase) = {
+        let lista = system::install::progresso_listar();
+        lista
+            .iter()
+            .find(|p| p.id == id)
+            .map(|p| (p.estado.clone(), p.fase.clone()))
+            .unwrap_or_default()
+    };
+    if estado.is_empty() {
+        return Err("operação não encontrada".to_string());
+    }
+    // instalação já em transação do gerenciador de pacotes: não há como
+    // interromper com segurança; informar em vez de simular (§8.3)
+    if estado == "andamento" && fase.as_deref() == Some("instalando") {
+        return Err(
+            "a instalação já começou e o gerenciador de pacotes do sistema não pode ser interrompido com segurança; aguarde o término"
+                .to_string(),
+        );
+    }
+    if estado == "concluido" || estado == "erro" || estado == "cancelado" {
+        return Err("esta operação já terminou".to_string());
+    }
+    system::install::progresso_atualizar(&id, Some("Cancelando..."), None, Some("cancelando"));
+    system::install::pedir_cancelar(&id);
+    // se a operação estava pausada (sem laço ativo), o cancelamento é
+    // imediato e concluído aqui
+    if estado == "pausado" {
+        system::install::progresso_atualizar(
+            &id,
+            Some("Cancelado pelo usuário"),
+            None,
+            Some("cancelado"),
+        );
+    }
+    Ok("cancelamento solicitado".to_string())
+}
+
+/// retoma um download pausado via HTTP Range; sem suporte a Range no
+/// servidor, recomeça do zero (nunca anexa dados incompatíveis)
+#[tauri::command]
+async fn retomar_compat(fork: String, versao: String) -> Result<String, String> {
+    let id = format!("proton:{fork}:{versao}");
+    if !system::install::progresso_iniciar(&id, "Proton", "Retomando download...") {
+        return Err("Este instalador já está em andamento".to_string());
+    }
+    let fork_bg = fork.clone();
+    let versao_bg = versao.clone();
+    let id_bg = id.clone();
+    tauri::async_runtime::spawn(async move {
+        let id_cb = id_bg.clone();
+        let r = tauri::async_runtime::spawn_blocking(move || {
+            let id_prog = id_cb.clone();
+            system::install::instalar_proton(
+                &fork_bg,
+                &versao_bg,
+                &id_cb,
+                true,
+                Some(&mut move |pct, desc| {
+                    system::install::progresso_atualizar(&id_prog, Some(desc), pct, None);
+                }),
+            )
+            .map_err(|e| e.to_string())
+        })
+        .await;
+        finalizar_proton(&id_bg, r.map_err(|e| e.to_string()));
+    });
+    Ok("retomando".to_string())
+}
+
+/// estado final de uma execução: mapeia __pausado__ e o cancelamento
+fn finalizar_proton(
+    id: &str,
+    r: Result<Result<String, String>, String>,
+) {
+    match r {
+        Ok(Ok(msg)) => {
+            system::install::progresso_atualizar(id, Some(&msg), None, Some("concluido"))
+        }
+        Ok(Err(e)) => {
+            let estado = if e.contains("__pausado__") {
+                Some("pausado")
+            } else if e.contains("cancelado pelo usuário") {
+                Some("cancelado")
+            } else {
+                Some("erro")
+            };
+            let desc = e
+                .replace("__pausado__", "Pausado — use Retomar para continuar")
+                .replace("download cancelado pelo usuário", "Cancelado pelo usuário");
+            system::install::progresso_atualizar(id, Some(&desc), None, estado);
+        }
+        Err(_) => system::install::progresso_atualizar(
+            id,
+            Some("Processo finalizado inesperadamente"),
+            None,
+            Some("erro"),
+        ),
+    }
+}
+
+/// ferramentas de compat do Steam (oficiais + customs) com caminhos reais
+#[tauri::command]
+fn listar_protons_steam() -> Vec<system::steam::ProtonLocal> {
+    let mut v = system::steam::protons_oficiais();
+    v.extend(system::steam::protons_custom());
+    v
+}
+
+/// remove uma ferramenta de compat do Steam após validação de identidade
+#[tauri::command]
+fn remover_ferramenta_compat(caminho: String) -> Result<String, String> {
+    system::steam::remover_ferramenta(&caminho)
+}
+
+/// remove uma variante de Wine via gerenciador de pacotes (valida o catálogo)
+#[tauri::command]
+fn remover_wine_compat(pkg: String) -> Result<String, String> {
+    system::install::remover_wine(&pkg).map_err(|e| e.to_string())
 }
 
 fn nome_wine(pkg: &str) -> String {
@@ -171,10 +301,12 @@ async fn instalar_wine(pkg: String) -> Result<String, String> {
     tauri::async_runtime::spawn(async move {
         let id_cb = id_bg.clone();
         let r = tauri::async_runtime::spawn_blocking(move || {
+            let id_prog = id_cb.clone();
             system::install::instalar_wine(
                 &pkg_bg,
+                &id_cb,
                 Some(&mut move |pct, desc| {
-                    system::install::progresso_atualizar(&id_cb, Some(desc), pct, None);
+                    system::install::progresso_atualizar(&id_prog, Some(desc), pct, None);
                 }),
             )
             .map_err(|e| e.to_string())
@@ -188,7 +320,15 @@ async fn instalar_wine(pkg: String) -> Result<String, String> {
                 Some("concluido"),
             ),
             Ok(Err(e)) => {
-                system::install::progresso_atualizar(&id_bg, Some(&e), None, Some("erro"))
+                // cancelamento antes da transação do gerenciador → cancelado
+                let estado = if e.contains("cancelada pelo usuário") {
+                    Some("cancelado")
+                } else {
+                    Some("erro")
+                };
+                let desc = e
+                    .replace("instalação cancelada pelo usuário", "Cancelado pelo usuário");
+                system::install::progresso_atualizar(&id_bg, Some(&desc), None, estado);
             }
             Err(_) => system::install::progresso_atualizar(
                 &id_bg,
@@ -220,30 +360,20 @@ async fn instalar_proton_versao(fork: String, versao: String) -> Result<String, 
     tauri::async_runtime::spawn(async move {
         let id_cb = id_bg.clone();
         let r = tauri::async_runtime::spawn_blocking(move || {
+            let id_prog = id_cb.clone();
             system::install::instalar_proton(
                 &fork_bg,
                 &versao_bg,
+                &id_cb,
+                false,
                 Some(&mut move |pct, desc| {
-                    system::install::progresso_atualizar(&id_cb, Some(desc), pct, None);
+                    system::install::progresso_atualizar(&id_prog, Some(desc), pct, None);
                 }),
             )
             .map_err(|e| e.to_string())
         })
         .await;
-        match r {
-            Ok(Ok(msg)) => {
-                system::install::progresso_atualizar(&id_bg, Some(&msg), None, Some("concluido"))
-            }
-            Ok(Err(e)) => {
-                system::install::progresso_atualizar(&id_bg, Some(&e), None, Some("erro"))
-            }
-            Err(_) => system::install::progresso_atualizar(
-                &id_bg,
-                Some("Processo finalizado inesperadamente"),
-                None,
-                Some("erro"),
-            ),
-        }
+        finalizar_proton(&id_bg, r.map_err(|e| e.to_string()));
     });
     Ok("em andamento".to_string())
 }
@@ -255,15 +385,7 @@ fn get_system_info() -> system::SystemSnapshot {
 
 #[tauri::command]
 fn abrir_app(app_id: String) -> Result<String, String> {
-    let out = std::process::Command::new("xdg-open")
-        .arg(&app_id)
-        .output()
-        .map_err(|e| e.to_string())?;
-    if out.status.success() {
-        Ok("Aplicativo iniciado".to_string())
-    } else {
-        Err(String::from_utf8_lossy(&out.stderr).to_string())
-    }
+    system::install::abrir_launcher(&app_id)
 }
 
 #[tauri::command]
@@ -310,7 +432,13 @@ pub fn run() {
             listar_proton_versoes,
             listar_wine_versoes,
             progresso_compat,
-            limpar_progresso_compat,
+            limpar_historico_compat,
+            pausar_compat,
+            cancelar_compat,
+            retomar_compat,
+            listar_protons_steam,
+            remover_ferramenta_compat,
+            remover_wine_compat,
             abrir_app,
             instalar_wine,
             instalar_proton_versao,

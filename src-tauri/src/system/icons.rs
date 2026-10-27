@@ -22,10 +22,6 @@ fn emb(key: &str) -> Option<(&'static [u8], &'static str)> {
             include_bytes!("../../assets/icons/minigalaxy.png"),
             "image/png",
         )),
-        "legendary" => Some((
-            include_bytes!("../../assets/icons/legendary.ico"),
-            "image/x-icon",
-        )),
         "mangohud" => Some((
             include_bytes!("../../assets/icons/mangohud.svg"),
             "image/svg+xml",
@@ -109,7 +105,6 @@ pub fn chaves_embutidas() -> Vec<&'static str> {
         "bottles",
         "itch",
         "minigalaxy",
-        "legendary",
         "mangohud",
         "lact",
         "goverlay",

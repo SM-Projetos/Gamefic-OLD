@@ -94,6 +94,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     .then(renderOtimizacao)
     .catch((e) => console.error("Falha na análise de otimização:", e));
 
+  // estados de instalação mudaram (instale/remova/cancele) → recarrega os cards
+  window.addEventListener("estado-apps-mudou", () => recarregarSistema());
+
   renderHistorico().catch((e) => console.error(e));
   wireHistorico();
 
@@ -101,13 +104,24 @@ window.addEventListener("DOMContentLoaded", async () => {
     if (tab === "desempenho") monitor.render();
   });
 
+  let filaReinicioMonitoramento: Promise<void> = Promise.resolve();
+  const reiniciarMonitoramento = (intervalMs: number): Promise<boolean> => {
+    const operacao = filaReinicioMonitoramento.then(async () => {
+      await invoke("stop_monitoring");
+      await invoke("start_monitoring", { intervalMs });
+    });
+    filaReinicioMonitoramento = operacao.catch((e) => {
+      console.error("Falha ao reiniciar monitoramento:", e);
+    });
+    return operacao.then(() => true, () => false);
+  };
+
   const monitor = new Monitor((intervalMs) => {
     prefs.monitorIntervalMs = intervalMs;
     savePrefs(prefs);
-    invoke("stop_monitoring").catch(() => {});
-    invoke("start_monitoring", { intervalMs }).catch((e) =>
-      console.error("Falha ao reiniciar monitoramento:", e),
-    );
+    void reiniciarMonitoramento(intervalMs).then((iniciou) => {
+      setMonitorEstado(iniciou ? "Coleta ativa" : "Monitoramento indisponível");
+    });
   });
 
   const selectInterval = document.getElementById(
@@ -124,10 +138,9 @@ window.addEventListener("DOMContentLoaded", async () => {
     .init()
     .then(() => {
       monitor.show(document.getElementById("page-desempenho"));
-      invoke("start_monitoring", { intervalMs: prefs.monitorIntervalMs }).catch((e) =>
-        console.error("Falha ao iniciar monitoramento:", e),
-      );
-      setMonitorEstado("Coleta ativa");
+      void reiniciarMonitoramento(prefs.monitorIntervalMs).then((iniciou) => {
+        setMonitorEstado(iniciou ? "Coleta ativa" : "Monitoramento indisponível");
+      });
     })
     .catch((e) => {
       console.error("Falha na coleta de métricas:", e);

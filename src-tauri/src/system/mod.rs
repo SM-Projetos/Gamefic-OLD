@@ -5,6 +5,10 @@ pub mod icons;
 pub mod install;
 pub mod memory;
 pub mod os;
+
+pub mod pkgmgr;
+
+pub mod steam;
 pub mod sensors;
 pub mod storage;
 pub mod tools;
@@ -81,6 +85,7 @@ pub struct StorageDevice {
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ToolInfo {
+    pub id: String,
     pub name: String,
     pub description: String,
     pub available: bool,
@@ -97,6 +102,10 @@ pub struct AppEntry {
     pub available: bool,
     pub version: Option<String>,
     pub icon: Option<String>,
+    /// "instalado" | "nao_instalado" | "desconhecido" (§2.2)
+    pub estado: String,
+    /// formato de instalação identificado (Flatpak, nativo, binário, Steam)
+    pub formato: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize)]

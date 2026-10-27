@@ -67,6 +67,7 @@ pub fn detect() -> Vec<ToolInfo> {
     definition
         .iter()
         .map(|(key, name, availability, description, icons)| ToolInfo {
+            id: (*key).to_string(),
             name: (*name).to_string(),
             description: (*description).to_string(),
             available: availability.clone().check(),
@@ -129,24 +130,22 @@ pub fn launchers() -> Vec<AppEntry> {
             "Cliente GOG simples",
             &["/usr/share/icons/hicolor/256x256/apps/com.github.sharkwouter.minigalaxy.png"],
         ),
-        (
-            "legendary",
-            "Legendary",
-            Binario("legendary"),
-            "Cliente CLI da Epic Games",
-            &[],
-        ),
     ];
 
     definition
         .iter()
-        .map(|(key, name, availability, description, icons)| AppEntry {
-            id: (*key).to_string(),
-            name: (*name).to_string(),
-            description: (*description).to_string(),
-            available: availability.clone().check(),
-            version: None,
-            icon: icone_data_uri(key, icons),
+        .map(|(key, name, _availability, description, icons)| {
+            let estado = estado_instalacao(key);
+            AppEntry {
+                id: (*key).to_string(),
+                name: (*name).to_string(),
+                description: (*description).to_string(),
+                available: estado.estado == "instalado",
+                version: estado.versao.clone(),
+                icon: icone_data_uri(key, icons),
+                estado: estado.estado.clone(),
+                formato: estado.formato,
+            }
         })
         .collect()
 }
@@ -214,13 +213,19 @@ pub fn emuladores() -> Vec<AppEntry> {
     definition
         .iter()
         .map(
-            |(key, name, availability, description, icon_path)| AppEntry {
-                id: (*key).to_string(),
-                name: (*name).to_string(),
-                description: (*description).to_string(),
-                available: availability.clone().check(),
-                version: None,
-                icon: icone_data_uri(key, &[*icon_path]),
+            |(key, name, availability, description, icon_path)| {
+                let _ = availability;
+                let estado = estado_instalacao(key);
+                AppEntry {
+                    id: (*key).to_string(),
+                    name: (*name).to_string(),
+                    description: (*description).to_string(),
+                    available: estado.estado == "instalado",
+                    version: estado.versao.clone(),
+                    icon: icone_data_uri(key, &[*icon_path]),
+                    estado: estado.estado.clone(),
+                    formato: estado.formato,
+                }
             },
         )
         .collect()
@@ -242,29 +247,141 @@ pub fn compatibility() -> Vec<AppEntry> {
                 "/usr/share/pixmaps/wine.png",
             ],
         ),
+        estado: "desconhecido".to_string(),
+        formato: None,
     });
+    entries.last_mut().map(|e| {
+        e.estado = if e.available { "instalado" } else { "nao_instalado" }.to_string();
+        e.formato = e.available.then(|| "nativo".to_string());
+    });
+
+    // customizados em compatibilitytools.d (todas as raízes)
     for (label, version) in detectar_protons() {
         entries.push(AppEntry {
             id: format!("proton:{label}"),
             name: label.clone(),
-            description: "Proton para Steam".to_string(),
+            description: "Proton para Steam (compatibilitytools.d)".to_string(),
             available: true,
             version,
             icon: icone_data_uri("proton", &[]),
+            estado: "instalado".to_string(),
+            formato: Some("Steam (custom)".to_string()),
+        });
+    }
+
+    // oficiais gerenciados pelo Steam, em cada biblioteca detectada
+    for p in super::steam::protons_oficiais() {
+        if entries.iter().any(|e| e.id == format!("proton:{}", p.nome)) {
+            continue;
+        }
+        entries.push(AppEntry {
+            id: format!("proton:{}", p.nome),
+            name: p.nome.clone(),
+            description: "Proton gerenciado pelo Steam".to_string(),
+            available: true,
+            version: p.versao,
+            icon: icone_data_uri("proton", &[]),
+            estado: "instalado".to_string(),
+            formato: Some("Steam (oficial)".to_string()),
         });
     }
 
     entries
 }
 
+// ---------- detecção central do estado de instalação (§2) ----------
+// Mesma fonte de verdade da página de detalhes: pacotes do gerenciador
+// nativo, Flatpak por escopo, AppImage/diretórios do usuário e binário;
+// conclusão sem consulta concluída vira "desconhecido", nunca "não instalado".
+
+pub(crate) struct EstadoReal {
+    pub estado: String,
+    pub formato: Option<String>,
+    pub versao: Option<String>,
+}
+
+/// detecção real de um aplicativo do catálogo pelo id, usando os
+/// identificadores confiáveis do REGISTRY (pacote nativo, app-id do Flatpak)
+pub(crate) fn estado_instalacao(id: &str) -> EstadoReal {
+    let info = super::install::achado_pub(id);
+
+    // flatpak by escopo (mesma consulta do detail())
+    let flatpak_ids: Option<(Vec<(String, String)>, Vec<(String, String)>)> = Command::new("flatpak")
+        .arg("--version")
+        .output()
+        .ok()
+        .filter(|o| o.status.success())
+        .map(|_| {
+            (
+                super::install::flatpaks_escopo_pub("--system"),
+                super::install::flatpaks_escopo_pub("--user"),
+            )
+        });
+
+    if let Some(i) = info {
+        if let Some(fid) = i.flatpak {
+            match flatpak_ids {
+                None => {
+                    if i.nativos.iter().any(|p| super::pkgmgr::instalado(p.pkg).is_some()) {
+                        let familia = super::os::detect_distro().and_then(|d| d.family);
+                        return EstadoReal {
+                            estado: "instalado".into(),
+                            formato: Some("nativo".into()),
+                            versao: i
+                                .pacotes_aptos(familia.as_deref())
+                                .find_map(|p| super::pkgmgr::instalado(p)),
+                        };
+                    }
+                    // flatpak presente como única fonte conhecida mas consulta
+                    // indisponível: não é possível descartar a instalação
+                    return EstadoReal { estado: "desconhecido".into(), formato: None, versao: None };
+                }
+                Some((sistema, usuario)) => {
+                    if let Some((_, v)) = sistema.iter().chain(usuario.iter()).find(|(a, _)| a == fid) {
+                        let escopo = sistema.iter().any(|(a, _)| a == fid)
+                            .then(|| "sistema")
+                            .unwrap_or("usuário");
+                        return EstadoReal {
+                            estado: "instalado".into(),
+                            formato: Some(format!("Flatpak ({escopo})")),
+                            versao: (!v.is_empty()).then(|| v.clone()),
+                        };
+                    }
+                }
+            }
+        }
+        for pkg in i.pacotes_aptos(super::os::detect_distro().and_then(|d| d.family).as_deref()) {
+            if let Some(v) = super::pkgmgr::instalado(pkg) {
+                return EstadoReal {
+                    estado: "instalado".into(),
+                    formato: Some("nativo".into()),
+                    versao: Some(v),
+                };
+            }
+        }
+        return EstadoReal { estado: "nao_instalado".into(), formato: None, versao: None };
+    }
+
+    // id fora do REGISTRY: consulta só por binário (o estado depende do
+    // comando existir de forma confiável)
+    let achou = consegui_executar("which", [id]);
+    EstadoReal {
+        estado: if achou { "instalado".into() } else { "nao_instalado".into() },
+        formato: achou.then(|| "binário".to_string()),
+        versao: None,
+    }
+}
+
+
+/// Protons customizados instalados (compatibilitytools.d de cada raiz Steam)
 pub(crate) fn detectar_protons() -> Vec<(String, Option<String>)> {
     let mut achados: Vec<String> = Vec::new();
 
-    let mut bases: Vec<PathBuf> = Vec::new();
-    if let Ok(dir) = std::env::var("HOME") {
-        bases.push(PathBuf::from(&dir).join(".local/share/Steam/compatibilitytools.d"));
-        bases.push(PathBuf::from(&dir).join(".steam/steam/compatibilitytools.d"));
-    }
+    // todas as raízes Steam detectadas (nativa, Flatpak, Snap)
+    let bases: Vec<PathBuf> = super::steam::raizes_steam()
+        .iter()
+        .map(|r| r.join("compatibilitytools.d"))
+        .collect();
 
     for base in bases {
         if let Ok(entries) = fs::read_dir(&base) {
@@ -307,9 +424,10 @@ fn either(a: Availability, b: Availability) -> Availability {
     Availability::Qualquer(Box::new(a), Box::new(b))
 }
 
-fn consegui_executar(programa: &str, args: impl IntoIterator<Item = &'static str>) -> bool {
+fn consegui_executar<A: AsRef<str>>(programa: &str, args: impl IntoIterator<Item = A>) -> bool {
+    let args: Vec<String> = args.into_iter().map(|a| a.as_ref().to_string()).collect();
     Command::new(programa)
-        .args(args)
+        .args(&args)
         .output()
         .map(|o| o.status.success())
         .unwrap_or(false)

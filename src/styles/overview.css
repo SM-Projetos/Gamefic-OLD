@@ -10,7 +10,6 @@
 
 .card:hover {
   transform: translateY(-2px);
-  margin: var(--space-1);
   box-shadow: 0 0 0 1px var(--card-hover-ring, var(--accent-purple)), var(--card-hover-glow, 0 0 24px rgba(139, 92, 246, 0.35));
 }
 /* Visão geral — layout em destaque inspirado no centro de controle */
@@ -681,8 +680,7 @@
   gap: var(--space-5);
   align-items: start;
   width: 100%;
-  max-height: calc(100vh - 140px);
-  overflow-y: auto;
+  margin: var(--space-4);
 }
 
 .app-detalhe__icone {
@@ -879,6 +877,28 @@
 
 .progress--indeterminado .progress__bar {
   animation: compat-progresso-pulso 1.4s ease-in-out infinite;
+}
+
+/* controles (pausar/retomar/cancelar/remover) alinhados à direita do item */
+.compat-progresso-acoes {
+  display: flex;
+  justify-content: flex-end;
+  gap: var(--space-2);
+}
+
+.compat-progresso-acoes .btn {
+  padding: var(--space-1) var(--space-3);
+  font-size: 12px;
+}
+
+.compat-progresso-estado[data-estado="pausado"],
+.compat-progresso-estado[data-estado="cancelado"],
+.compat-progresso-estado[data-estado="instalado"] {
+  color: var(--text-muted);
+}
+
+.compat-progresso-estado[data-estado="pausado"] {
+  color: var(--accent-yellow, var(--text-muted));
 }
 
 @keyframes compat-progresso-pulso {

@@ -6,11 +6,15 @@ export interface FonteInfo {
   disponivel: boolean;
   instalado: boolean;
   versao?: string | null;
+  versaoRepo?: string | null;
+  motivo?: string | null;
+  indeterminado?: boolean;
 }
 
 export interface AppDetail {
   id: string;
   nome: string;
+  gui: boolean;
   fornecedor: string;
   licenca: string;
   descCurta: string;
@@ -42,6 +46,8 @@ let detalheAtual: AppDetail | null = null;
 
 function fonteLabel(f: string): string {
   if (f === "flatpak") return "Flatpak";
+  if (f === "flatpak-user") return "Flatpak (usuário)";
+  if (f.startsWith("snap:")) return `Snap Store (${f.split(":")[1]})`;
   if (f.startsWith("nativo:")) return `Nativo (${f.split(":")[1]})`;
   return f;
 }
@@ -62,8 +68,13 @@ const TITLES: Record<string, string> = {
 };
 
 export function irParaApps(): void {
+  // aciona a transição de volta (zoom reverso) e limpa o sinal logo após a animação
+  document.body.dataset.navVolta = "apps";
   isMostarPagina("visao-geral");
   setTopbarTitle("Apps");
+  window.setTimeout(() => {
+    delete document.body.dataset.navVolta;
+  }, 300);
 }
 
 export function abrirApp(appId: string): void {
@@ -84,20 +95,35 @@ function renderDetail(d: AppDetail): void {
     ? `<img src="${esc(d.icone)}" alt="">`
     : `<span style="font-size:40px">${esc(d.nome.charAt(0))}</span>`;
 
-  const fonteOptions = d.fontes
-    .map((f) => `<option value="${esc(f.fonte)}">${esc(fonteLabel(f.fonte))}${f.disponivel ? "" : " — indisponível"}</option>`)
-    .join("");
-
   const fontesMeta = d.fontes.map((f) => {
     const estado = f.instalado ? "Instalado" : f.disponivel ? "Disponível" : "Indisponível";
+    const detalhes: string[] = [];
+    if (f.instalado && f.versao) detalhes.push(`versão instalada: ${f.versao}`);
+    if (f.versao && !f.instalado) detalhes.push(`versão no repositório: ${f.versao}`);
+    if (f.motivo) detalhes.push(f.motivo);
     return (`
       <li class="kv-lista-item">${esc(fonteLabel(f.fonte))} — <strong>${estado}</strong>
-      ${f.versao ? ` <span class="muted num">${esc(f.versao)}</span>` : ""}</li>`);
+      ${detalhes.length > 0 ? ` <span class="muted">(${esc(detalhes.join("; "))})</span>` : ""}
+      ${!f.instalado && f.disponivel && f.versaoRepo ? ` <span class="muted num">${esc(f.versaoRepo)}</span>` : ""}</li>`);
   }).join("");
 
   const algumInstalado = d.fontes.some((f) => f.instalado);
   const fonteInstalada = d.fontes.find((f) => f.instalado);
-  const fontePadrao = algumInstalado ? fonteInstalada?.fonte ?? d.fontes[0]?.fonte ?? "" : primeiraLivres?.fonte ?? d.fontes[0]?.fonte ?? "";
+  // §5: só fontes conferidas entram no seletor; estados de diagnóstico ficam separados
+  const fontesOfertaveis = d.fontes.filter((f) => f.disponivel && !f.instalado);
+  const algumIndeterminado = d.fontes.some((f) => f.indeterminado);
+  const fontePadrao = algumInstalado ? fonteInstalada?.fonte ?? "" : fontesOfertaveis[0]?.fonte ?? "";
+
+  // mensagem quando não há fonte instalável verificada (casos F e G)
+  const semOpcoes = !algumInstalado && fontesOfertaveis.length === 0;
+  const mensagemSemFonte = semOpcoes
+    ? `
+      <p class="field__status" id="app-fonte-status">${
+        algumIndeterminado
+          ? "Não foi possível verificar as fontes agora (falha temporária) — recarregue os detalhes para tentar novamente."
+          : "Não encontrado em nenhuma fonte compatível com este sistema."
+      }</p>`
+    : "";
 
   card.innerHTML = `
     <div class="app-detalhe__icone" aria-hidden="true">${icone}</div>
@@ -112,16 +138,19 @@ function renderDetail(d: AppDetail): void {
 
       <ul class="kv-lista app-detalhe__fontes-lista">${fontesMeta}</ul>
 
+      ${fontesOfertaveis.length > 1 ? `
       <div class="app-detalhe__fontes fonte-dropdown-wrapper">
         <button type="button" class="btn btn--primary fonte-dropdown-btn" id="fonte-dropdown-btn">
           <span id="fonte-dropdown-label">${fontePadrao ? fonteLabel(fontePadrao) : "Nativo"}</span>
           <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="m6 9 6 6 6-6"/></svg>
         </button>
         <div class="fonte-dropdown-menu" id="fonte-dropdown-menu" hidden>
-          ${d.fontes.map((f) => `<button type="button" class="fonte-dropdown-menu__item" data-fonte="${esc(f.fonte)}">${esc(fonteLabel(f.fonte))}${f.disponivel ? "" : " — indisponível"}</button>`).join("")}
+          ${fontesOfertaveis.map((f) => `<button type="button" class="fonte-dropdown-menu__item" data-fonte="${esc(f.fonte)}">${esc(fonteLabel(f.fonte))}</button>`).join("")}
         </div>
         <p class="field__status app-fonte-status" id="app-fonte-status">&nbsp;</p>
       </div>
+      ` : ""}
+      ${mensagemSemFonte}
 
       <div class="app-detalhe__acoes">
         <button class="btn btn--primary" id="btn-app-instalar" type="button">Instalar</button>
@@ -178,9 +207,13 @@ function atualizarEstadoEntrada(): void {
   const btnAbrir = document.querySelector<HTMLButtonElement>("#btn-app-abrir");
 
   const algumInstalado = detalheAtual ? detalheAtual.fontes.some((x) => x.instalado) : false;
+  const semOpcoes = detalheAtual
+    ? !algumInstalado &&
+      detalheAtual.fontes.filter((x) => x.disponivel && !x.instalado).length === 0
+    : false;
 
   if (dropdownWrapper) dropdownWrapper.style.display = algumInstalado ? "none" : "inline-block";
-  if (btnInstalar) btnInstalar.style.display = algumInstalado ? "none" : "inline-flex";
+  if (btnInstalar) btnInstalar.style.display = algumInstalado || semOpcoes ? "none" : "inline-flex";
 
   if (status) {
     status.textContent = f
@@ -193,7 +226,7 @@ function atualizarEstadoEntrada(): void {
   }
 
   const fonteInstalada = detalheAtual?.fontes.find((x) => x.instalado);
-  const temAtualizacao = fonteInstalada ? (fonteInstalada.versao_repo && fonteInstalada.versao_repo !== fonteInstalada.versao) : false;
+  const temAtualizacao = fonteInstalada ? (fonteInstalada.versaoRepo && fonteInstalada.versaoRepo !== fonteInstalada.versao) : false;
 
   if (btnAtualizar) {
     btnAtualizar.style.display = (algumInstalado && temAtualizacao) ? "inline-flex" : "none";
@@ -206,7 +239,7 @@ function atualizarEstadoEntrada(): void {
     btnRemover.disabled = !f || !f.instalado;
   }
 
-  if (!btnAbrir && algumInstalado && fonteInstalada) {
+  if (!btnAbrir && detalheAtual?.gui && algumInstalado && fonteInstalada) {
     const acoes = document.querySelector<HTMLDivElement>(".app-detalhe__acoes");
     if (acoes) {
       const btn = document.createElement("button");
@@ -225,8 +258,9 @@ function atualizarEstadoEntrada(): void {
   }
 }
 
-function btnResumo(b: HTMLButtonElement | null): HTMLButtonElement | null {
-  return b;
+function revalidarEstados(): void {
+  // avisa a listagem geral para recarregar o estado real (§3.3)
+  window.dispatchEvent(new Event("estado-apps-mudou"));
 }
 
 function executarAcao(acao: "instalar" | "atualizar" | "remover"): void {
@@ -239,9 +273,11 @@ function executarAcao(acao: "instalar" | "atualizar" | "remover"): void {
     .then((msg) => {
       status.textContent = msg;
       if (detalheAtual?.id) abrirApp(detalheAtual.id);
+      revalidarEstados();
     })
     .catch((e) => {
       status.textContent = `Erro: ${String(e)}`;
+      revalidarEstados();
     });
 }
 
@@ -260,6 +296,8 @@ export function wireAppClicks(): void {
         abrirModalCompat();
         return;
       }
+      // itens de compatibilidade (Wine, Protons) não têm página de instalação
+      if (gid === "ov-compat") return;
       const id = tile.dataset.appId;
       if (id && !id.startsWith("proton:")) abrirApp(id);
     });
@@ -291,7 +329,42 @@ interface ProgressoItem {
   nome: string;
   desc: string;
   pct?: number | null;
-  estado: string; // "andamento" | "concluido" | "erro"
+  estado: string; // "andamento" | "pausado" | "cancelado" | "concluido" | "erro"
+  fase?: string | null; // "aguardando" | "baixando" | "instalando" | ...
+  kbFeitos?: number | null;
+  kbTotal?: number | null;
+  velocidade?: number | null;
+}
+
+const CONTROLES = {
+  pausar: "Pausar",
+  retomar: "Retomar",
+  cancelar: "Cancelar",
+} as const;
+
+/// controles disponíveis pelo estado real da operação
+function acoesDoEstado(p: ProgressoItem): ("pausar" | "retomar" | "cancelar")[] {
+  const ativos: ("pausar" | "retomar" | "cancelar")[] = [];
+  const proton = p.id.startsWith("proton:");
+  const fork = p.id.split(":")[1] ?? "";
+  if (p.estado === "andamento") {
+    const fase = p.fase ?? "";
+    if (fase.startsWith("baixando")) {
+      ativos.push("pausar", "cancelar");
+    } else if (fase.startsWith("aguardando")) {
+      // antes da transação/extrair: ainda é possível cancelar com segurança
+      ativos.push("cancelar");
+    }
+  } else if (p.estado === "pausado" && proton && fork !== "") {
+    ativos.push("retomar", "cancelar");
+  }
+  return ativos;
+}
+
+/// operações extraídas do id de progresso (ex.: "proton:ge:GE-Proton11-11")
+function alvoDoId(p: ProgressoItem): { fork: string; versao: string } {
+  const partes = p.id.split(":");
+  return { fork: partes[1] ?? "", versao: partes.slice(2).join(":") };
 }
 
 function abrirModalCompat(): void {
@@ -306,8 +379,14 @@ function abrirModalCompat(): void {
     document.getElementById("btn-instalar-proton")?.addEventListener("click", instalarProton);
     document.getElementById("btn-fechar-compat")?.addEventListener("click", fecharModalCompat);
     document.getElementById("modal-scrim")?.addEventListener("click", ocultarModalCompat);
+    // controles de download usam delegação de eventos
+    document.getElementById("modal-progresso")?.addEventListener("click", aoClicarProgresso);
+    // remoção de ferramentas de compat do Steam (delegação no contêiner da lista)
+    document.getElementById("modal-protons-lista")?.addEventListener("click", aoClicarProtons);
+    document.getElementById("btn-limpar-hist")?.addEventListener("click", () => limparHistorico());
   }
-  // preenche imediatamente a partir do cache em disco
+  // lista de ferramentas do Steam (estado real, sem cache) + cache de forks
+  atualizarProtonsSteam();
   invoke<ForkList & { versoes?: Record<string, string[]> }>("cache_compat_forks")
     .then((dados) => {
       forksCacheVersoes = dados.versoes ?? {};
@@ -329,8 +408,7 @@ function abrirModalCompat(): void {
 function fecharModalCompat(): void {
   pararPollProgresso();
   document.getElementById("modal-compat")?.setAttribute("hidden", "");
-  renderProgresso([]);
-  invoke("limpar_progresso_compat").catch(() => {});
+  // o histórico persiste na sessão: fechamentos não limpam operações
 }
 
 function ocultarModalCompat(): void {
@@ -358,28 +436,57 @@ function pararPollProgresso(): void {
   }
 }
 
+/// operaões terminadas já sinalizadas para revalidação da aba Apps
+let terminalSinalizado = new Set<string>();
+
+function sinalizarTermino(lista: ProgressoItem[]): void {
+  for (const p of lista) {
+    if (
+      (p.estado === "concluido" || p.estado === "erro" || p.estado === "cancelado") &&
+      !terminalSinalizado.has(p.id)
+    ) {
+      terminalSinalizado.add(p.id);
+      revalidarEstados();
+    }
+  }
+}
+
 function renderProgresso(lista: ProgressoItem[]): void {
   const area = document.getElementById("modal-progresso");
   if (!area) return;
   if (lista.length === 0) {
     area.hidden = true;
     area.innerHTML = "";
+    atualizarBotoesHistorico([]);
     return;
   }
   area.hidden = false;
   area.innerHTML = lista
     .map((p) => {
-      const pct =
-        p.estado === "concluido" ? 100 : p.estado === "erro" ? 0 : p.pct ?? null;
-      const rotPct =
-        p.estado === "concluido"
-          ? "Concluído"
-          : p.estado === "erro"
-            ? "Erro"
-            : pct !== null
-              ? `${pct}%`
-              : "—";
-      const indeterminado = p.estado === "andamento" && pct === null;
+      const concluido = p.estado === "concluido";
+      const pct = concluido ? 100 : p.pct ?? null;
+      const rotuloEstado: Record<string, string> = {
+        andamento: pct !== null && p.pct !== null ? "Baixando" : "Em andamento",
+        pausado: "Pausado",
+        cancelando: "Cancelando...",
+        cancelado: "Cancelado",
+        concluido: "Concluído",
+        erro: "Erro",
+      };
+      const rotPct = rotuloEstado[p.estado] ?? "—";
+      const indeterminado =
+        p.estado === "andamento" && pct === null && p.fase !== "instalando";
+      const barra = p.fase === "instalando" && !concluido ? undefined : pct;
+      const acoes = acoesDoEstado(p)
+        .map((a) => {
+          const { fork, versao } = alvoDoId(p);
+          return `<button class="btn btn--outline btn--sm" data-acao="${a}" data-id="${esc(p.id)}" data-fork="${esc(fork)}" data-versao="${esc(versao)}" type="button">${CONTROLES[a]}</button>`;
+        })
+        .join("");
+      const vel =
+        p.velocidade && p.velocidade > 0
+          ? ` · ${(p.velocidade / 1e6).toFixed(1)} MB/s`
+          : "";
       return `
       <div class="compat-progresso-item" data-estado="${esc(p.estado)}">
         <div class="compat-progresso-head">
@@ -387,12 +494,53 @@ function renderProgresso(lista: ProgressoItem[]): void {
           <span class="compat-progresso-estado" data-estado="${esc(p.estado)}">${esc(rotPct)}</span>
         </div>
         <div class="progress${indeterminado ? " progress--indeterminado" : ""}">
-          <div class="progress__bar" style="width:${(pct ?? 35) + "%"}"></div>
+          <div class="progress__bar" style="width:${barra === undefined ? 35 : barra}%"></div>
         </div>
-        <p class="muted compat-progresso-desc">${esc(p.desc)}</p>
+        <p class="muted compat-progresso-desc">${esc(p.desc)}${esc(vel)}</p>
+        ${acoes ? `<div class="compat-progresso-acoes">${acoes}</div>` : ""}
       </div>`;
     })
     .join("");
+  atualizarBotoesHistorico(lista);
+  sinalizarTermino(lista);
+}
+
+/// botão único Limpar: remove somente operações em estado terminal
+/// (concluído, falhou, cancelado); operações em andamento/pausadas ficam
+function atualizarBotoesHistorico(lista: ProgressoItem[]): void {
+  const area = document.getElementById("modal-historico-botoes");
+  if (!area) return;
+  const terminal = lista.some(
+    (p) => p.estado === "concluido" || p.estado === "erro" || p.estado === "cancelado",
+  );
+  area.hidden = !terminal;
+}
+
+function limparHistorico(): void {
+  invoke("limpar_historico_compat", { modo: "finalizados" })
+    .then(() => atualizarProgresso())
+    .catch(() => {});
+}
+
+/// controles do item de progresso: executam sobre a operação real
+function aoClicarProgresso(ev: Event): void {
+  const botao = (ev.target as HTMLElement).closest("button[data-acao]");
+  if (!botao) return;
+  const acao = botao.getAttribute("data-acao");
+  const id = botao.getAttribute("data-id") ?? "";
+  if (acao === "pausar") {
+    invoke("pausar_compat", { id }).catch(() => {});
+  } else if (acao === "cancelar") {
+    invoke<string>("cancelar_compat", { id })
+      .catch((e) => statusCompat(String(e)))
+      .then(() => atualizarProgresso());
+  } else if (acao === "retomar") {
+    const fork = botao.getAttribute("data-fork") ?? "";
+    const versao = botao.getAttribute("data-versao") ?? "";
+    invoke("retomar_compat", { fork, versao })
+      .then(() => atualizarProgresso())
+      .catch((e) => statusCompat(`Falha ao retomar: ${String(e)}`));
+  }
 }
 
 let forksWines: InfoCompat[] = [];
@@ -470,14 +618,20 @@ function carregarVersoesWine(): void {
     .catch(() => {});
 }
 
+let wineEmModoRemocao = false;
 function atualizarInfoWine(): void {
   const sel = document.getElementById("wine-fork") as HTMLSelectElement | null;
   const info = document.getElementById("wine-info");
+  const botao = document.getElementById("btn-instalar-wine") as HTMLButtonElement | null;
   if (!sel || !info) return;
   const f = forksWines.find((w) => w.chave === sel.value);
+  // ferramenta instalada → somente Remover (§5.2)
+  const instalado = Boolean(f?.versao_atual);
+  wineEmModoRemocao = instalado;
+  if (botao) botao.textContent = instalado ? "Remover" : "Instalar";
   info.textContent = f
-    ? f.versao_atual
-      ? `Já instalado (${f.versao_atual})`
+    ? instalado
+      ? `Já instalado (${f.versao_atual}) — desinstale antes de instalar outra variante`
       : f.versao_repo
         ? `Disponível no repositório: ${f.versao_repo}`
         : "Não disponível nos repositórios"
@@ -533,9 +687,25 @@ function statusCompat(msg: string): void {
   }
 }
 
+// ferramentas instaladas do Steam são listadas na aba Apps (§5.1);
+// o histórico do modal contém apenas operações iniciadas pelo Gamefic
+
 function instalarWine(): void {
   const sel = document.getElementById("wine-fork") as HTMLSelectElement | null;
   if (!sel) return;
+  if (wineEmModoRemocao) {
+    if (!window.confirm(`Remover ${sel.value}? desinstala a variante pelo gerenciador de pacotes`)) {
+      return;
+    }
+    statusCompat(`Removendo Wine (${sel.value})... — autorize no pkexec`);
+    invoke<string>("remover_wine_compat", { pkg: sel.value })
+      .then((msg) => {
+        statusCompat(msg ?? "Removido");
+        carregarForks();
+      })
+      .catch((e) => statusCompat(`Erro: ${String(e)}`));
+    return;
+  }
   statusCompat("Instalando Wine (pacote " + sel.value + ")... — autorize no pkexec");
   invoke<string>("instalar_wine", { pkg: sel.value })
     .then(() => {
@@ -556,4 +726,63 @@ function instalarProton(): void {
       atualizarProgresso();
     })
     .catch((e) => statusCompat(`Erro: ${String(e)}`));
+}
+
+// ---------- ferramentas instaladas do Steam (oficiais + customs) ----------
+
+interface ProtonLocal {
+  nome: string;
+  versao?: string | null;
+  caminho: string;
+  biblioteca: string;
+  tipo: string; // "oficial" | "custom"
+}
+
+function atualizarProtonsSteam(): void {
+  const area = document.getElementById("modal-protons-lista");
+  if (!area) return;
+  invoke<ProtonLocal[]>("listar_protons_steam")
+    .then((lista) => {
+      if (!lista || lista.length === 0) {
+        area.hidden = true;
+        area.innerHTML = "";
+        return;
+      }
+      area.hidden = false;
+      area.innerHTML = `<h4>Ferramentas de compatibilidade do Steam</h4>` +
+        lista
+          .map((p) => {
+            const rotulo = p.versao ? `${p.nome} — ${p.versao}` : p.nome;
+            return `<div class="compat-progresso-item" data-caminho="${esc(p.caminho)}">
+              <div class="compat-progresso-head">
+                <span class="compat-progresso-nome">${esc(rotulo)}</span>
+                <span class="compat-progresso-estado" data-estado="instalado">${esc(p.tipo)}</span>
+              </div>
+              <p class="muted compat-progresso-desc">${esc(p.caminho)}</p>
+              <div class="compat-progresso-acoes">
+                <button class="btn btn--outline btn--sm" data-remover="${esc(p.caminho)}" type="button">Remover</button>
+              </div>
+            </div>`;
+          })
+          .join("");
+    })
+    .catch(() => {
+      area.hidden = true;
+    });
+}
+
+/// remoção individual com confirmação; o backend valida identidade e local
+function aoClicarProtons(ev: Event): void {
+  const botao = (ev.target as HTMLElement).closest("button[data-remover]");
+  if (!botao) return;
+  const caminho = botao.getAttribute("data-remover") ?? "";
+  const nome = caminho.split("/").pop() ?? caminho;
+  if (!window.confirm(`Remover ${nome}? Esta ação não pode ser desfeita.`)) return;
+  invoke<string>("remover_ferramenta_compat", { caminho })
+    .then((msg) => {
+      statusCompat(msg ?? "Removido");
+      atualizarProtonsSteam();
+      carregarForks();
+    })
+    .catch((e) => statusCompat(`Erro ao remover: ${String(e)}`));
 }

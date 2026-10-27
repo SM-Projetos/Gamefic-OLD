@@ -2,6 +2,21 @@
 
 Formato baseado em [Keep a Changelog](https://keepachangelog.com/pt-BR/1.1.0/), versionado por SemVer. Histórico completo de desenvolvimento nos commits `SNAPSHOT-xxxx` do `git log`.
 
+## [Não lançado]
+
+### Adicionado
+- Detectores de família ampliados (Alpine/Void/Gentoo/Solus/NixOS), arquitetura real (uname) e catálogo com pacotes mapeados por família (`PkgNat`): `wine-cachyos` só é candidato no CachyOS/Arch.
+- Fonte Snap Store distinta: só é ofertada com `snapd` funcionalmente em execução, com identificadores verificados na API oficial da Snap Store (steam e retroarch).
+- Cache de detalhes com TTL, invalidado por qualquer ação de instalação/remoção, e exemplo `examples/dump_fontes.rs` para diagnóstico manual.
+- Método de consulta de remotos Flatpak reais (`flatpak remotes`): disponibilidade concedida apenas por confirmação do remoto configurado, sem presumir flathub.
+- Novos testes: mapeamento por família de catálogo, snap verificado, parser de remotos, idioma localizado e estados de consulta.
+
+### Corrigido
+- Consultas bem-sucedidas sem análise multi-idioma (`Versão:` PT-BR e `Version:`), evitando esconder fontes disponíveis do Flatpak em sistemas em português.
+- Diferenciação de ausência confirmada, remoto ausente no escopo, falha de consulta (ex.: rede) e snapd parado; falhas temporárias mostram novo estado "indeterminado" na interface
+- Interface da aba Apps: fontes não verificadas/viáveis não aparecem mais como opções no seletor; diagnóstico detalhado permanece na listagem de fontes.
+- Listener de remoção de ferramentas de compatibilidade do Steam perdido no SNAPSHOT-0044 (botões Remover sem efeito).
+
 ## [0.1.0] — versão inicial (2026-10-22)
 
 Primeira versão funcional do app: fundação visual, detecção real de sistema, monitoramento, histórico de eventos e análise de otimização.

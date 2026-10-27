@@ -136,27 +136,57 @@
 .content {
   grid-area: content;
   overflow-y: auto;
-  padding: var(--space-6);
+  padding: var(--space-8);
 }
 
 /* cada página rola por si: muda/volta mantém a posição onde parou */
 .page {
   display: none;
   max-width: 100%;
-  overflow-y: auto;
   min-height: 100%;
-  height: auto;
 }
 
 .page--active {
   display: block;
-  animation: page-in var(--t-med) ease;
+  animation: page-in var(--t-page);
+}
+
+/* página de detalhe (aberta via card): fade + zoom discreto 97% → 100% */
+.page--detalhe.page--active {
+  animation: page-zoom-in var(--t-page);
+}
+
+/* volta do detalhe para a visão geral: fade + zoom reverso (direção coerente) */
+body[data-nav-volta="apps"] #page-visao-geral.page--active {
+  animation: page-zoom-out var(--t-page);
 }
 
 @keyframes page-in {
   from {
     opacity: 0;
     transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes page-zoom-in {
+  from {
+    opacity: 0;
+    transform: scale(0.97);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+@keyframes page-zoom-out {
+  from {
+    opacity: 0;
+    transform: scale(1.02);
   }
   to {
     opacity: 1;

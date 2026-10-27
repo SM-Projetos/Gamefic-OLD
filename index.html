@@ -62,9 +62,16 @@
 
       <main class="content">
         <section class="page page--active" id="page-visao-geral">
-          <h2 class="page__section-title" style="margin-top: var(--space-5);">Launchers instalados</h2>
+          <h2 class="page__section-title" style="margin-top: var(--space-5);">Launchers</h2>
           <div class="card tools-card">
             <div class="tools-grid" id="ov-launchers">
+              <p class="muted">Consultando...</p>
+            </div>
+          </div>
+
+          <h2 class="page__section-title" style="margin-top: var(--space-5);">Emuladores</h2>
+          <div class="card tools-card">
+            <div class="tools-grid" id="ov-emul">
               <p class="muted">Consultando...</p>
             </div>
           </div>
@@ -86,16 +93,9 @@
               <p class="muted">Consultando...</p>
             </div>
           </div>
-
-          <h2 class="page__section-title" style="margin-top: var(--space-5);">Emuladores</h2>
-          <div class="card tools-card">
-            <div class="tools-grid" id="ov-emul">
-              <p class="muted">Consultando...</p>
-            </div>
-          </div>
         </section>
 
-        <section class="page" id="page-app-detalhe">
+        <section class="page page--detalhe" id="page-app-detalhe">
           <button class="link-arrow" id="btn-voltar-apps" type="button">
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m15 6-6 6 6 6"/></svg>
             Voltar
@@ -327,6 +327,9 @@
               </div>
             </div>
             <div class="compat-progresso-area" id="modal-progresso" hidden></div>
+            <div class="compat-progresso-area" id="modal-historico-botoes" hidden>
+              <button class="btn btn--outline" id="btn-limpar-hist" type="button">Limpar</button>
+            </div>
             <p class="muted" id="compat-status" hidden>&nbsp;</p>
           </div>
         </div>
